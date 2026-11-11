@@ -44,6 +44,8 @@ npm start
 
 [本次切片规格](.scratch/integration-v0.5/spec.md) · [接入与取舍](docs/engineering/INTEGRATIONS.md) · [第三方许可全文](THIRD_PARTY_NOTICES.md) · [实际日志](logs/2026-11-11-integration.md)。后续每次本项目开发都遵守项目内保留的Matt工作流：规格、分解、行为测试、实现、双轴审查与日志，不把设计目标当成已实现能力。
 
+本轮最终规则mecha-slice-0.2。23项行为测试、类型检查与构建通过；[独立代码审查及修复](docs/engineering/CODE-REVIEW-v0.5.md)、[用户角度质询](docs/engineering/USER-REVIEW-v0.5.md)已保存。3D/降级实际成像、GLB视觉、窄屏与触屏真机仍待验，不能从上述检查推定已经支持所有设备。
+
 ## 当前有效文件
 
 - [v0.4设计总览](docs/mecha-v0.4/README.md)

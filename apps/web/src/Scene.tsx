@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { VStack } from '@astryxdesign/core/Stack';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MAX_GLB_BYTES, validateGlbBuffer } from './glb.ts';
+import { MAX_GLB_BYTES } from './glb.ts';
+import { loadLocalGlb } from './loadLocalGlb.ts';
 import type { Snapshot } from '../../../packages/protocol/src/index.ts';
 
 export interface SceneHandle { setView(yaw: number, pitch: number): void; }
@@ -360,7 +360,10 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
       return;
     }
     if (state.shell) { state.shell.removeFromParent(); disposeObject(state.shell); state.shell = null; }
-    if (!props.importedFile) return;
+    if (!props.importedFile) {
+      latest.current.onImportStatus('原创标准机体 · 可本地替换躯干外观');
+      return;
+    }
     const file = props.importedFile;
     latest.current.onImportStatus('正在本机检查GLB，文件不会上传。');
     void (async () => {
@@ -369,13 +372,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
         if (file.size > MAX_GLB_BYTES) rejectImport('文件超过20MB；请先简化模型。');
         const bytes = await file.arrayBuffer();
         if (cancelled) return;
-        validateGlbBuffer(bytes);
-        const manager = new THREE.LoadingManager();
-        manager.setURLModifier((url) => {
-          if (!url.startsWith('blob:')) rejectImport('已阻止模型请求外部资源。');
-          return url;
-        });
-        const gltf = await new GLTFLoader(manager).parseAsync(bytes, '');
+        const gltf = await loadLocalGlb(bytes);
         imported = gltf.scene;
         if (cancelled || runtime.current !== state) { disposeObject(imported); return; }
         imported.traverse((object) => {
@@ -393,7 +390,8 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
         imported.position.sub(center); shell.add(imported);
         shell.scale.setScalar(Math.min(0.82 / Math.max(size.x, 1e-6), 0.62 / Math.max(size.y, 1e-6), 0.5 / Math.max(size.z, 1e-6)));
         state.shell = shell; state.attachShell(); imported = null;
-        latest.current.onImportStatus(`${file.name} 已作为本机躯干外壳预览；标准机架、服务器碰撞与战斗参数保持不变。`);
+        const textureNote = gltf.textureFailures ? '部分贴图未能解码，缺失处按无贴图显示。' : '';
+        latest.current.onImportStatus(`${file.name} 已作为本机躯干外壳预览；${textureNote}标准机架、服务器碰撞与战斗参数保持不变。`);
       } catch (error) {
         if (imported) disposeObject(imported);
         if (!cancelled) latest.current.onImportStatus(`导入未完成，保留标准机体。${error instanceof Error ? error.message : '请检查静态GLB格式。'}`);
@@ -402,7 +400,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
     return () => { cancelled = true; };
   }, [props.importedFile, fallback]);
 
-  return <VStack ref={host} width="100%" height="100%" minHeight={380} gap={0}>
+  return <VStack ref={host} width="100%" height="clamp(24rem, 54vh, 36rem)" minHeight={380} gap={0}>
     <canvas key={fallback ? 'compatible-2d' : 'webgl-3d'} ref={canvas} role="img" aria-label={fallback ? '俯视驾驶兼容模式：根据服务器快照显示机体、目标和弹丸，不提供GLB外观预览。' : '原创机体3D竞技场。画面位置、目标与弹丸来自服务器快照；导入外壳仅在本机显示。'} />
   </VStack>;
 });

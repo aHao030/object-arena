@@ -495,7 +495,8 @@
         "runtimeEvidence": [
           "tests/mujoco.test.ts",
           "apps/lab/evidence/light.json",
-          "apps/lab/evidence/heavy.json"
+          "apps/lab/evidence/heavy.json",
+          "tests/http.test.ts"
         ]
       },
       "plannedIntegrationEntries": [
@@ -568,7 +569,7 @@
         },
         {
           "path": "apps/web/vite.config.ts",
-          "exists": false
+          "exists": true
         }
       ]
     },
@@ -703,7 +704,8 @@
         "runtime": "build-and-glb-validation-verified-visual-unverified",
         "runtimeEvidence": [
           "tests/glb.test.ts",
-          "apps/web/src/Scene.tsx"
+          "apps/web/src/Scene.tsx",
+          "tests/glb-loader.test.ts"
         ]
       },
       "plannedIntegrationEntries": [
@@ -824,7 +826,7 @@
       "plannedIntegrationEntries": [
         {
           "path": "apps/web/vite.config.ts",
-          "exists": false
+          "exists": true
         }
       ]
     },
@@ -6026,25 +6028,35 @@
           "name": "tdd",
           "path": "tools/mattpocock-skills/skills/engineering/tdd/SKILL.md",
           "sha256": "969583080caf842ae86a53501a0091eced13fd89cad65d3aa75c09112318ff33",
-          "disposition": "adopted-principles",
-          "executionEvidence": [],
+          "disposition": "executed-red-green-for-runtime-slices",
+          "executionEvidence": [
+            "apps/lab/VERIFICATION.md",
+            "packages/sim/TDD-LOG.md",
+            "logs/2026-11-11-integration.md"
+          ],
           "fullWorkflowCompletionClaimed": false
         },
         {
           "name": "implement",
           "path": "tools/mattpocock-skills/skills/engineering/implement/SKILL.md",
           "sha256": "83042ad79e3d7ce616124bf59a38a5ebe79417adb36bedfc4e6223aab783be8c",
-          "disposition": "adopted-principles",
-          "executionEvidence": [],
+          "disposition": "implemented-runtime-slice-with-visual-acceptance-pending",
+          "executionEvidence": [
+            ".scratch/integration-v0.5/spec.md",
+            ".scratch/integration-v0.5/tasks.md",
+            "logs/2026-11-11-integration.md"
+          ],
           "fullWorkflowCompletionClaimed": false
         },
         {
           "name": "code-review",
           "path": "tools/mattpocock-skills/skills/engineering/code-review/SKILL.md",
           "sha256": "36847f010579f3bccd54c49793e1fd043f10cc49b4607bac5a3067522e528b91",
-          "disposition": "reference-read-execution-pending",
-          "executionEvidence": [],
-          "fullWorkflowCompletionClaimed": false
+          "disposition": "executed-independent-standards-and-spec-review-and-recheck",
+          "executionEvidence": [
+            "docs/engineering/CODE-REVIEW-v0.5.md"
+          ],
+          "fullWorkflowCompletionClaimed": true
         }
       ]
     }
@@ -6077,8 +6089,26 @@
     }
   ],
   "verification": {
-    "runtime": "pending",
-    "evidenceLog": "logs/2026-11-11-integration.md"
+    "runtime": "scoped-runtime-tests-passed-visual-and-device-unverified",
+    "ruleset": "mecha-slice-0.2",
+    "testsPassed": 23,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "sourceAndBuiltDoctor": {
+      "passed": 20,
+      "warnings": 3,
+      "failures": 0
+    },
+    "evidenceLog": "logs/2026-11-11-integration.md",
+    "codeReview": "docs/engineering/CODE-REVIEW-v0.5.md",
+    "unverified": [
+      "3D visual output",
+      "2D fallback display",
+      "GLB visual assembly",
+      "responsive touch usability",
+      "real phone/tablet performance",
+      "Docker runtime"
+    ]
   },
   "alternativesAssessment": [
     {
@@ -6088,7 +6118,7 @@
         "node_modules/three/examples/jsm/utils/SkeletonUtils.js"
       ],
       "exists": true,
-      "status": "availability-verified; asset-import behavior not yet implemented or verified",
+      "status": "GLTFLoader static parse and resource cleanup tested; rendering unverified. SkeletonUtils availability only; automatic rigging deferred.",
       "reason": "Avoid adding a duplicate GLB/rig parsing dependency before existing official addons are evaluated."
     },
     {

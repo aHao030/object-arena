@@ -1,5 +1,5 @@
 /** Shared wire contract for the first authoritative, local-development slice. */
-export const SIM_RULESET = 'mecha-slice-0.1' as const;
+export const SIM_RULESET = 'mecha-slice-0.2' as const;
 export const PHYSICS_HZ = 60;
 export const SNAPSHOT_HZ = 20;
 export const INPUT_HZ = 30;

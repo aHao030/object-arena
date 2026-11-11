@@ -13,7 +13,8 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {CubeTransparentIcon, PlayIcon, ArrowUpTrayIcon} from '@heroicons/react/24/outline';
 import {Icon} from '@astryxdesign/core/Icon';
 import {Scene, type SceneHandle} from './Scene';
-import {CATALOG, type InputFrame, type Snapshot} from '../../../packages/protocol/src/index';
+import {CATALOG, type Snapshot} from '../../../packages/protocol/src/index';
+import {CONTROL_LABELS, makeInputFrame, type ControlAction} from './input';
 import type {MechanicalCheckReport} from '../../lab/src/index.js';
 
 const endpoint = import.meta.env.DEV ? `${location.protocol}//${location.hostname}:2567` : location.origin;
@@ -29,7 +30,7 @@ function useWide() {
   return wide;
 }
 
-function HoldButton({label, action, held}: {label: string; action: string; held: React.RefObject<Set<string>>}) {
+function HoldButton({label, action, held}: {label: string; action: ControlAction; held: React.RefObject<Set<ControlAction>>}) {
   const down = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -46,7 +47,7 @@ export default function App() {
   const wide = useWide();
   const roomRef = useRef<Room | null>(null);
   const scene = useRef<SceneHandle>(null);
-  const held = useRef(new Set<string>());
+  const held = useRef(new Set<ControlAction>());
   const aim = useRef({yaw: 0, pitch: 0});
   const sequence = useRef(0);
   const seeded = useRef(false);
@@ -69,7 +70,7 @@ export default function App() {
   const own = snapshot?.players.find(player => player.id === playerId);
 
   useEffect(() => {
-    const keyActions: Record<string, string> = {
+    const keyActions: Record<string, ControlAction> = {
       KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
       KeyA:'left', KeyD:'right', ArrowLeft:'turnLeft', ArrowRight:'turnRight',
       Space:'fire', ShiftLeft:'boost', ShiftRight:'boost', KeyE:'lift',
@@ -86,16 +87,16 @@ export default function App() {
     window.addEventListener('blur', clear); document.addEventListener('visibilitychange', clear);
     const timer = window.setInterval(() => {
       const keys = held.current;
-      aim.current.yaw += (Number(keys.has('turnLeft')) - Number(keys.has('turnRight'))) * 0.045;
+      const turn = Number(keys.has('turnLeft')) - Number(keys.has('turnRight'));
+      if (turn) {
+        const yaw = aim.current.yaw + turn * 0.045;
+        aim.current.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+        setYawDegrees(Math.round(aim.current.yaw * 180 / Math.PI));
+      }
       scene.current?.setView(aim.current.yaw, aim.current.pitch);
       const room = roomRef.current;
       if (!room) return;
-      const frame: InputFrame = {seq: sequence.current++,
-        moveX: Number(keys.has('right')) - Number(keys.has('left')),
-        moveZ: Number(keys.has('back')) - Number(keys.has('forward')),
-        aimYaw: aim.current.yaw, aimPitch: aim.current.pitch,
-        fire: keys.has('fire'), boost: keys.has('boost'), lift: keys.has('lift')};
-      room.send('input', frame);
+      room.send('input', makeInputFrame(sequence.current++, keys, aim.current));
     }, 1000 / 30);
     return () => {
       clearInterval(timer); window.removeEventListener('keydown', keyDown);
@@ -165,6 +166,14 @@ export default function App() {
     finally {setLabBusy(false);}
   }
 
+  async function copyRoom() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard-unavailable');
+      await navigator.clipboard.writeText(connectedRoom);
+      setNotice('房间号已复制。');
+    } catch {setNotice(`请手动复制房间号：${connectedRoom}`);}
+  }
+
   const changeYaw = (value: number | [number, number]) => {
     const degrees = Number(value); setYawDegrees(degrees); aim.current.yaw = degrees * Math.PI / 180;
   };
@@ -208,7 +217,7 @@ export default function App() {
                 <Text role="status" aria-live="polite">{notice}</Text>
                 {snapshot && <Text type="supporting" color="secondary">服务器步数 {snapshot.serverTick} · 剩余 {Math.ceil(snapshot.remaining)} 秒 · 靶标 {snapshot.targets.filter(target => target.health > 0).length} · 玩家 {snapshot.players.length}/2</Text>}
                 {snapshot?.result && <Text type="label">{snapshot.result.winnerId === playerId ? '任务完成 / 本场获胜' : snapshot.result.winnerId ? '本场结束 / 对手获胜' : '本场结束'} · 结果编号 {snapshot.result.resultId}</Text>}
-                {connectedRoom && <HStack gap={2} wrap="wrap"><Text type="code">房间 {connectedRoom}</Text><Button label="复制房间号" size="sm" variant="ghost" onClick={() => {void navigator.clipboard.writeText(connectedRoom).then(() => setNotice('房间号已复制。'), () => setNotice(`请手动复制房间号：${connectedRoom}`));}} /></HStack>}
+                {connectedRoom && <HStack gap={2} wrap="wrap"><Text type="code">房间 {connectedRoom}</Text><Button label="复制房间号" size="sm" variant="ghost" onClick={() => void copyRoom()} /></HStack>}
               </VStack>
             </Section>
             <Section variant="section" padding={4}>
@@ -216,7 +225,7 @@ export default function App() {
                 <Heading level={2}>驾驶控制</Heading>
                 <Text type="supporting" color="secondary">键盘：WASD 移动 · ← → 转向 · 空格射击 · Shift 推进 · E 升空。触屏按住下方按钮，滑杆调整朝向。</Text>
                 <HStack gap={2} wrap="wrap">
-                  {(['forward','back','left','right','turnLeft','turnRight','fire','boost','lift'] as const).map((action, index) => <HoldButton key={action} action={action} held={held} label={['前进','后退','左移','右移','左转','右转','射击','推进','升空'][index]} />)}
+                  {(Object.keys(CONTROL_LABELS) as ControlAction[]).map(action => <HoldButton key={action} action={action} held={held} label={CONTROL_LABELS[action]} />)}
                 </HStack>
                 <Slider label="水平朝向" min={-180} max={180} step={1} value={yawDegrees} onChange={changeYaw} valueDisplay="text" formatValue={value => `${value}°`} />
                 <Slider label="瞄准仰角" min={-30} max={40} step={1} value={pitchDegrees} onChange={changePitch} valueDisplay="text" formatValue={value => `${value}°`} />

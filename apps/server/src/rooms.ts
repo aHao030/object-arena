@@ -1,6 +1,6 @@
 import { Room, type Client } from '@colyseus/core';
 import { createSimulation, type Simulation } from '../../../packages/sim/src/index.ts';
-import { PHYSICS_HZ, type MatchMode, type MatchResult } from '../../../packages/protocol/src/index.ts';
+import { PHYSICS_HZ, type MatchMode, type MatchResult, type Snapshot } from '../../../packages/protocol/src/index.ts';
 
 /** Process-local results only; this is intentionally not a durable ledger. */
 export const matchResults = new Map<string, MatchResult>();
@@ -12,6 +12,8 @@ function recordResult(result: MatchResult) {
 }
 
 export class MachineRoom extends Room {
+  /** Server-owned room configuration; never populated from join options. */
+  protected matchDuration = 180;
   private simulation!: Simulation;
   private sentResult = false;
   private restarting = false;
@@ -23,7 +25,7 @@ export class MachineRoom extends Room {
     this.mode = options.mode === 'arena' ? 'arena' : 'training';
     this.maxClients = this.mode === 'arena' ? 2 : 1;
     this.autoDispose = true;
-    this.simulation = await createSimulation({ mode: this.mode, matchId: this.roomId });
+    this.simulation = await createSimulation({ mode: this.mode, matchId: this.roomId, duration: this.matchDuration });
     this.onMessage('input', (client: Client, message: unknown) => {
       const verdict = this.simulation.applyInput(client.sessionId, message);
       if (!verdict.accepted) client.send('input-rejected', verdict);
@@ -34,7 +36,7 @@ export class MachineRoom extends Room {
       if (Date.now() - this.lastRestartAt < 1000) { client.send('input-rejected', { reason: 'restart-rate-limit' }); return; }
       this.lastRestartAt = Date.now();
       this.restarting = true;
-      void createSimulation({ mode: 'training', matchId: `${this.roomId}:${Date.now()}` }).then((simulation) => {
+      void createSimulation({ mode: 'training', matchId: `${this.roomId}:${Date.now()}`, duration: this.matchDuration }).then((simulation) => {
         if (this.clients.length === 0) { simulation.destroy(); return; }
         this.simulation.destroy();
         this.simulation = simulation;
@@ -47,12 +49,8 @@ export class MachineRoom extends Room {
     this.setFixedTimestep(() => {
       this.simulation.step();
       const snapshot = this.simulation.getSnapshot();
+      if (this.publishResult(snapshot)) return;
       if (snapshot.serverTick % 3 === 0) this.broadcast('snapshot', snapshot);
-      if (snapshot.result && !this.sentResult) {
-        this.sentResult = true;
-        recordResult(snapshot.result);
-        this.broadcast('result', snapshot.result);
-      }
     }, PHYSICS_HZ);
     // Set this AFTER the simulation interval exists. Colyseus installs an idle
     // clock interval when patches are disabled before a simulation starts; that
@@ -80,12 +78,20 @@ export class MachineRoom extends Room {
   onLeave(client: Client) {
     this.simulation.removePlayer(client.sessionId);
     const snapshot = this.simulation.getSnapshot();
-    this.broadcast('snapshot', snapshot);
-    if (snapshot.result && !this.sentResult) {
+    if (!this.publishResult(snapshot)) this.broadcast('snapshot', snapshot);
+  }
+
+  private publishResult(snapshot: Snapshot): boolean {
+    if (!snapshot.result) return false;
+    if (!this.sentResult) {
       this.sentResult = true;
       recordResult(snapshot.result);
+      // Terminal delivery is independent of the regular 20Hz cadence. Send
+      // the state before its notification, once, including onLeave finishes.
+      this.broadcast('snapshot', snapshot);
       this.broadcast('result', snapshot.result);
     }
+    return true;
   }
 
   onDispose() { this.simulation.destroy(); }

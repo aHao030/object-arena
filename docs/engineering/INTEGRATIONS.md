@@ -19,6 +19,23 @@ React、React DOM、Heroicons和开发工具同样从安装包及lock记录。re
 
 ## 源码定位不能假精确
 
+实际运行边界：
+
+```mermaid
+flowchart LR
+  C[键盘 / 触屏动作] --> R[Colyseus 房间]
+  R --> P[服务器 Rapier]
+  P --> S[权威快照 / 结果]
+  S --> V[Three.js / 2D兼容视图]
+  G[本地静态 GLB] --> F[预检与本地加载]
+  F --> V
+  B[受限负载参数] --> H[HTTP机械工作台]
+  H --> W[隔离Worker / MuJoCo WASM]
+  W --> D[带条件与版本的诊断报告]
+```
+
+本地GLB没有上传到服务器；MuJoCo报告没有进入对战判定；尚未接通外部模型供应商。
+
 Three npm gitHead为`7e89746a687bb88271253698fa108b1dd59825d0`，Rapier为`b716d375efc0201003f0cd9ef7168eee0b62c177`，MuJoCo为`ac60eae30fa7e0d31315c38d9476752fb81be67e`；这些在官方仓可以解析，但仍不构成独立可复现构建证明。
 
 Colyseus core发布元数据给出的`c45b410e99eadffff4b74e701339992e2faa15f8`源码package.json实际为`0.15.0-preview.8`，ws-transport给出的`320a0325f01eff3cd7afa8fb2efa80077ebdbf4a`实际为`0.14.17-alpha.8`，SDK未给gitHead。因此不将这两个旧hash写成当前0.18的实际源码。已另核对官方源码检查点`ce781b98bfc595d7fe243409b9a79087c8785109`，三个package.json版本确为0.18.28/0.18.10/0.18.5。这个检查点仍是版本匹配的源码参考，发行物来源是否与之逐字对应未证明。

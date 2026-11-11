@@ -21,11 +21,20 @@ type RouteResponse = ServerResponse & {
 async function readJson(request: IncomingMessage): Promise<unknown> {
   let length = 0;
   const chunks: Buffer[] = [];
-  for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    length += buffer.length;
-    if (length > 16_384) throw Object.assign(new Error('request-too-large'), { status: 413 });
-    chunks.push(buffer);
+  // Absolute deadline: incoming bytes must not keep refreshing a slow upload.
+  const timer = setTimeout(() => {
+    request.destroy(Object.assign(new Error('request-body-timeout'), { status: 408 }));
+  }, 2000);
+  timer.unref();
+  try {
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      length += buffer.length;
+      if (length > 16_384) throw Object.assign(new Error('request-too-large'), { status: 413 });
+      chunks.push(buffer);
+    }
+  } finally {
+    clearTimeout(timer);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Object.assign(new Error('invalid-json'), { status: 400 }); }
@@ -50,21 +59,25 @@ export function createGameServer() {
         res.json(result);
       });
       app.post('/api/lab/check', async (req: RouteRequest, res: RouteResponse) => {
-        if (labBusy) { res.status(429).json({ code: 'lab-busy', message: '机械工作台正在检查另一份模型，请稍后再试。' }); return; }
-        labBusy = true;
+        let acquired = false;
         try {
           const contentType = req.headers['content-type'] ?? '';
           if (!contentType.includes('application/json')) { res.status(415).json({ code: 'json-required' }); return; }
           const input = await readJson(req);
           if (!input || typeof input !== 'object' || Array.isArray(input)) { res.status(400).json({ code: 'invalid-input' }); return; }
+          if (labBusy) { res.status(429).json({ code: 'lab-busy', message: '机械工作台正在检查另一份模型，请稍后再试。' }); return; }
+          labBusy = true;
+          acquired = true;
           const lab = await import('../../lab/src/index.js');
           const report = await lab.runMechanicalCheck(input as Parameters<typeof lab.runMechanicalCheck>[0]);
           res.json(report);
         } catch (error) {
+          // A body timeout destroys its socket; never write another response to it.
+          if (res.destroyed || res.writableEnded) return;
           const status = typeof error === 'object' && error && 'status' in error ? Number(error.status) : 422;
           const safeCode = status === 413 ? 'request-too-large' : status === 400 ? 'invalid-json' : 'mechanical-check-failed';
           res.status(status >= 400 && status < 600 ? status : 422).json({ code: safeCode, message: '机械检查未完成，请检查输入或稍后重试。' });
-        } finally { labBusy = false; }
+        } finally { if (acquired) labBusy = false; }
       });
       const contentTypes: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.glb': 'model/gltf-binary' };
       app.use(async (req: RouteRequest, res: RouteResponse, next: () => void) => {

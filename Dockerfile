@@ -7,6 +7,7 @@ COPY apps ./apps
 COPY packages ./packages
 COPY astryx-themes.ts tsconfig.json ./
 COPY integrations ./integrations
+COPY THIRD_PARTY_NOTICES.md ./
 RUN npm run build
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

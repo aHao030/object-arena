@@ -31,7 +31,7 @@ docker compose up --build
 - `GET /health`：进程健康状态。
 - `GET /api/catalog`：实际实现的规则、机体参数和缺失能力。
 - `GET /api/integrations`：来源登记及运行时接入状态。
-- `POST /api/lab/check`：JSON `{ "payloadKg": 0.1 }`，真实受限MuJoCo机械臂验证；输入0.1–5kg，可选targetAngle±0.8rad。拒绝额外字段、XML、远程URL与插件。请求体16KiB、HTTP串行、Worker硬截止。
+- `POST /api/lab/check`：JSON `{ "payloadKg": 0.1 }`，真实受限MuJoCo机械臂验证；输入0.1–5kg，可选targetAngle±0.8rad。拒绝额外字段、XML、远程URL与插件。请求体16KiB、读取绝对截止2秒；完整输入后才占HTTP引擎槽（1个），Worker另有硬截止。
 - `GET /api/matches/:id`：本进程内保存的对局结果；重启清空。
 - Colyseus房间`training`（1人）、`arena`（2人）：标准SDK进行`joinOrCreate`/`joinById`，动作消息`input`，服务器`snapshot`与`result`。
 

@@ -54,6 +54,7 @@ class MachineSimulation {
   private pilots = new Map<string, Pilot>();
   private targets: Target[] = [];
   private bullets: Bullet[] = [];
+  private muzzleHits: { ownerId: string; colliderHandle: number; position: Vector3 }[] = [];
   private hitOwners = new Map<number, { kind: 'player' | 'target'; id: string }>();
   private events: SimulationEvent[] = [];
   private tick = 0;
@@ -206,6 +207,10 @@ class MachineSimulation {
       if (pilot.overheated && pilot.heat <= 60) pilot.overheated = false;
     }
     this.world.step();
+    // Close contacts are resolved in the same damage phase as flying bullets,
+    // so an earlier pilot in the input loop cannot suppress a same-tick trade.
+    for (const hit of this.muzzleHits) this.applyHit(hit.ownerId, hit.colliderHandle, hit.position);
+    this.muzzleHits = [];
     this.advanceBullets();
     if (this.status !== 'running') return;
     const dead = [...this.pilots.values()].filter((p) => p.health <= 0);
@@ -265,7 +270,16 @@ class MachineSimulation {
     const start = { x: bodyPosition.x, y: bodyPosition.y + 0.48, z: bodyPosition.z };
     const blocker = this.world.castRay(new RAPIER.Ray(start, direction), 0.9, true, undefined, undefined, pilot.collider);
     this.event({ type: 'shot', playerId: pilot.id, position: start });
-    if (blocker) { this.event({ type: 'rejected', playerId: pilot.id, reason: 'muzzle-blocked' }); return; }
+    if (blocker) {
+      if (this.hitOwners.has(blocker.collider.handle)) {
+        this.muzzleHits.push({ ownerId: pilot.id, colliderHandle: blocker.collider.handle, position: {
+          x: start.x + direction.x * blocker.timeOfImpact,
+          y: start.y + direction.y * blocker.timeOfImpact,
+          z: start.z + direction.z * blocker.timeOfImpact,
+        } });
+      } else this.event({ type: 'rejected', playerId: pilot.id, reason: 'muzzle-blocked' });
+      return;
+    }
     const position = { x: start.x + direction.x * 0.9, y: start.y + direction.y * 0.9, z: start.z + direction.z * 0.9 };
     this.bullets.push({ id: `${this.matchId}:bullet:${++this.serial}`, ownerId: pilot.id, position,
       velocity: { x: direction.x * 45, y: direction.y * 45, z: direction.z * 45 }, life: 2 });
@@ -279,24 +293,8 @@ class MachineSimulation {
       const owner = this.pilots.get(bullet.ownerId);
       const hit = this.world.castRay(new RAPIER.Ray(bullet.position, direction), speed * DT, true, undefined, undefined, owner?.collider);
       if (hit) {
-        const target = this.hitOwners.get(hit.collider.handle);
         const position = { x: bullet.position.x + direction.x * hit.timeOfImpact, y: bullet.position.y + direction.y * hit.timeOfImpact, z: bullet.position.z + direction.z * hit.timeOfImpact };
-        if (target) {
-          if (target.kind === 'player') {
-            const pilot = this.pilots.get(target.id);
-            if (pilot) pilot.health = Math.max(0, pilot.health - 35);
-          } else {
-            const trainingTarget = this.targets.find((item) => item.id === target.id);
-            if (trainingTarget) {
-              trainingTarget.health = Math.max(0, trainingTarget.health - 35);
-              if (trainingTarget.health === 0) {
-                this.hitOwners.delete(trainingTarget.collider.handle);
-                trainingTarget.collider.setEnabled(false);
-              }
-            }
-          }
-          this.event({ type: 'hit', playerId: bullet.ownerId, targetId: target.id, damage: 35, position });
-        }
+        this.applyHit(bullet.ownerId, hit.collider.handle, position);
         continue;
       }
       bullet.position = { x: bullet.position.x + bullet.velocity.x * DT, y: bullet.position.y + bullet.velocity.y * DT, z: bullet.position.z + bullet.velocity.z * DT };
@@ -304,6 +302,25 @@ class MachineSimulation {
       if (bullet.life > 0) remaining.push(bullet);
     }
     this.bullets = remaining;
+  }
+
+  private applyHit(ownerId: string, colliderHandle: number, position: Vector3) {
+    const target = this.hitOwners.get(colliderHandle);
+    if (!target) return;
+    if (target.kind === 'player') {
+      const pilot = this.pilots.get(target.id);
+      if (pilot) pilot.health = Math.max(0, pilot.health - 35);
+    } else {
+      const trainingTarget = this.targets.find((item) => item.id === target.id);
+      if (trainingTarget) {
+        trainingTarget.health = Math.max(0, trainingTarget.health - 35);
+        if (trainingTarget.health === 0) {
+          this.hitOwners.delete(trainingTarget.collider.handle);
+          trainingTarget.collider.setEnabled(false);
+        }
+      }
+    }
+    this.event({ type: 'hit', playerId: ownerId, targetId: target.id, damage: 35, position });
   }
 
   private event(event: Omit<SimulationEvent, 'id' | 'tick'>) {
@@ -341,6 +358,7 @@ class MachineSimulation {
     this.world.free();
     this.pilots.clear();
     this.bullets = [];
+    this.muzzleHits = [];
   }
 }
 

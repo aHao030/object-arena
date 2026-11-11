@@ -1,10 +1,10 @@
 # Issue tracker: Local Markdown
 
-本工作区起始为空，没有既有远程仓库。用户已授权生成项目文件与自主迭代；因此选择本地任务作为可撤回的设计默认，不创建外部 Issue。
+本工作区起始为空。2026-11-11按用户明确选择创建独立私有仓库aHao030/object-arena。本地任务继续采用Markdown，不自动创建外部Issue。
 
-- 规格：`.scratch/mecha-arena/spec.md`。
+- 当前实施切片规格：`.scratch/integration-v0.5/spec.md`；完整目标设计保留在`.scratch/mecha-arena/spec.md`。
 - 每个任务一个文件：`.scratch/mecha-arena/issues/NN-slug.md`。
-- 状态：draft、ready-for-agent、in-progress、done、blocked、superseded。当前任务均为 draft：内容完整，尚未做技术验证和排期。
+- 状态：draft、ready-for-agent、in-progress、done、blocked、superseded。01–09为完整目标的设计任务，10–13记录v0.5实际集成切片，不以切片完成代替目标完成。
 - Blocked by 只列真实前置依赖；没有依赖的任务可并行。
 - 每个任务须包含可演示行为、通过条件及失败场景。
 - 文档完成不能将开发任务标记 done。

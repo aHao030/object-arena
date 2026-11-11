@@ -1,5 +1,7 @@
 # Matt Pocock 工作流使用记录
 
+v0.5实际实施续记：固定原文快照完整保存在tools/mattpocock-skills。按相关research/implement/tdd/code-review指令完成来源核查、切片规格、独立任务、真实行为红绿验证与两轴fresh-context审查。审查发现并修复5类运行缺陷及任务格式问题，原两轴分别独立复验关闭，未把设计质询替代代码审查。证据见[实施日志](../logs/2026-11-11-integration.md)、[两轴审查](engineering/CODE-REVIEW-v0.5.md)及[用户质询](engineering/USER-REVIEW-v0.5.md)。浏览器视觉/触屏/真机尚未验收，未宣称整个产品完工。
+
 2026-11-11续用记录：机体方向的真实用户回答已写入v0.4总览，按既有domain-modeling、to-spec、to-tickets结构生成新术语/ADR/规格/独立任务，并以并行主源研究、三类质询、复核和定点修订形成新记录。新文件位于docs/mecha-v0.4/与.scratch/mecha-arena/；原始技能快照和全局安装均未改动。
 
 ## 来源与核验
