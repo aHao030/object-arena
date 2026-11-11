@@ -33,16 +33,20 @@ function useWide() {
 }
 
 function HoldButton({label, action, controls}: {label: string; action: ControlAction; controls: PilotControls}) {
+  const activeSources = useRef(new Set<string>());
+  const press = (source: string) => {activeSources.current.add(source); controls.press(action, source);};
+  const release = (source: string) => {activeSources.current.delete(source); controls.release(action, source);};
   const down = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    controls.press(action); event.preventDefault();
+    press(`button:${action}:pointer:${event.pointerId}`); event.preventDefault();
   };
-  const up = () => {controls.release(action);};
+  const up = (event: PointerEvent<HTMLButtonElement>) => release(`button:${action}:pointer:${event.pointerId}`);
+  const clear = () => {for (const source of activeSources.current) controls.release(action, source); activeSources.current.clear();};
   return <Button label={label} variant="secondary" onPointerDown={down}
     onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up}
-    onKeyDown={event => {if (event.key === ' ' || event.key === 'Enter') controls.press(action);}}
-    onKeyUp={up} onBlur={up} />;
+    onKeyDown={event => {if (event.key === ' ' || event.key === 'Enter') press(`button:${action}:key:${event.code}`);}}
+    onKeyUp={event => release(`button:${action}:key:${event.code}`)} onBlur={clear} />;
 }
 
 export default function App() {
@@ -78,9 +82,9 @@ export default function App() {
       if (!roomRef.current || !KEY_ACTIONS[event.code] || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('input,textarea,select,button,[role="slider"]')) return;
-      event.preventDefault(); controls.press(KEY_ACTIONS[event.code]);
+      event.preventDefault(); controls.press(KEY_ACTIONS[event.code], `key:${event.code}`);
     };
-    const keyUp = (event: KeyboardEvent) => {if (KEY_ACTIONS[event.code]) controls.release(KEY_ACTIONS[event.code]);};
+    const keyUp = (event: KeyboardEvent) => {if (KEY_ACTIONS[event.code]) controls.release(KEY_ACTIONS[event.code], `key:${event.code}`);};
     const clear = () => controls.clear();
     window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp);
     window.addEventListener('blur', clear); document.addEventListener('visibilitychange', clear);
@@ -186,8 +190,8 @@ export default function App() {
   }
 
   function mouseFireChanged(pressed: boolean) {
-    if (pressed && roomRef.current) controls.press('fire');
-    else controls.release('fire');
+    if (pressed && roomRef.current) controls.press('fire', 'mouse:primary');
+    else controls.release('fire', 'mouse:primary');
   }
 
   const changeYaw = (value: number | [number, number]) => {
