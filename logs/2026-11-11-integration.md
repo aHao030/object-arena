@@ -68,3 +68,10 @@
 - 为物理判定修正升级规则mecha-slice-0.2；模板机参数/CP未改。另明确舞台高度、清除模型恢复状态、键盘转向同步滑杆，局域网HTTP页面复制API不可用时给出手动复制提示。
 - Docker配方包含workspace元数据及第三方许可全文；仍未在本机实际运行Docker。GUI/手机/平板未验边界保持不变。
 - 已重启生产构建服务127.0.0.1:2567，最终GET网页/health/catalog均200，catalog实际返回mecha-slice-0.2；停止临时5173开发服务。最终推送与远端检查记录在交付追加部分。
+
+### 交付回读
+
+- 修复提交`1ad37de48c4a287aed6a5e91eda5a1ba43255934`已推送到私有仓库main，git ls-remote读回相同SHA。源码、锁文件、完整上游许可与工作流快照均进入仓库；未将node_modules、构建目录、实际密钥或旧站点Git身份纳入。
+- 修复版GitHub Actions：[42960801192](https://github.com/aHao030/object-arena/actions/runs/42960801192)，completed/success；check job约1m4s。npm ci、23项测试/类型/构建和源码/构建doctor均成功。GitHub另提示v4 Actions声明的Node20已由平台强制切到Node24、ubuntu-latest正在迁移Ubuntu26；保留这些上游迁移提示，没有把它们写成测试失败或隐去。
+- 本次最后的收尾提交只更新任务状态、复核与交付记录，不改变上述已验证源码，使用skip ci避免重复执行不受文档变化影响的测试。
+- I-01/I-02/I-04切片done；I-03保持in-progress，待下一次允许的浏览器会话和真实手机/平板验收。照片生成、完整分件/绑定、自带API、持久账户/战绩仍未实现；没有标记整个v0.4目标或所有主流设备支持完成。

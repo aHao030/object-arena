@@ -46,3 +46,5 @@ Spec复验（原独立轴）：首轮3项全部resolved；独立运行9项相关
 主实施者最终npm run check退出0：23/23行为测试、类型检查与生产构建通过；源码与构建doctor 20pass/3warn/0fail。3D/降级/GLB视觉、触屏与真机仍独立列为未验，不能通过代码审查抹去。
 
 复验结论：Standards 0项未解决（原6项关闭）；Spec 0项未解决（原3项关闭）。
+
+修复提交`1ad37de48c4a287aed6a5e91eda5a1ba43255934`已推送，远端HEAD回读一致；[GitHub Actions 42960801192](https://github.com/aHao030/object-arena/actions/runs/42960801192)完成并通过，包括npm ci、npm run check及对源码目录的doctor。本次文档收尾不改变已验证源码。
