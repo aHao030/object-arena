@@ -20,6 +20,7 @@ export interface SceneProps {
   onRendererStatus(message: string): void;
   onLook(deltaX: number, deltaY: number): void;
   onMouseLookChange(locked: boolean, message: string): void;
+  onFireChange(pressed: boolean): void;
 }
 
 const PALETTE = {
@@ -221,6 +222,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
     const controls = createMouseControls(element, {
       onLook: (deltaX, deltaY) => latest.current.onLook(deltaX, deltaY),
       onStateChange: (locked, message) => latest.current.onMouseLookChange(locked, message),
+      onFireChange: pressed => latest.current.onFireChange(pressed),
     });
     mouseControls.current = controls;
     return () => {

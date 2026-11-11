@@ -14,7 +14,8 @@ import {CubeTransparentIcon, PlayIcon, ArrowUpTrayIcon} from '@heroicons/react/2
 import {Icon} from '@astryxdesign/core/Icon';
 import {Scene, type SceneHandle} from './Scene';
 import {CATALOG, type Snapshot} from '../../../packages/protocol/src/index';
-import {CONTROL_LABELS, makeInputFrame, type ControlAction} from './input';
+import {CONTROL_LABELS, KEY_ACTIONS, type ControlAction} from './input';
+import {createPilotControls, type PilotControls} from './pilotControls';
 import {applyMouseLook} from './mouseLook';
 import type {MechanicalCheckReport} from '../../lab/src/index.js';
 
@@ -31,16 +32,16 @@ function useWide() {
   return wide;
 }
 
-function HoldButton({label, action, held}: {label: string; action: ControlAction; held: React.RefObject<Set<ControlAction>>}) {
+function HoldButton({label, action, controls}: {label: string; action: ControlAction; controls: PilotControls}) {
   const down = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    held.current.add(action); event.preventDefault();
+    controls.press(action); event.preventDefault();
   };
-  const up = () => {held.current.delete(action);};
+  const up = () => {controls.release(action);};
   return <Button label={label} variant="secondary" onPointerDown={down}
     onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up}
-    onKeyDown={event => {if (event.key === ' ' || event.key === 'Enter') held.current.add(action);}}
+    onKeyDown={event => {if (event.key === ' ' || event.key === 'Enter') controls.press(action);}}
     onKeyUp={up} onBlur={up} />;
 }
 
@@ -48,7 +49,7 @@ export default function App() {
   const wide = useWide();
   const roomRef = useRef<Room | null>(null);
   const scene = useRef<SceneHandle>(null);
-  const held = useRef(new Set<ControlAction>());
+  const [controls] = useState(createPilotControls);
   const aim = useRef({yaw: 0, pitch: 0});
   const mouseCaptured = useRef(false);
   const sequence = useRef(0);
@@ -73,24 +74,18 @@ export default function App() {
   const own = snapshot?.players.find(player => player.id === playerId);
 
   useEffect(() => {
-    const keyActions: Record<string, ControlAction> = {
-      KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
-      KeyA:'left', KeyD:'right', ArrowLeft:'turnLeft', ArrowRight:'turnRight',
-      Space:'fire', ShiftLeft:'boost', ShiftRight:'boost', KeyE:'lift',
-    };
     const keyDown = (event: KeyboardEvent) => {
-      if (!roomRef.current || !keyActions[event.code]) return;
+      if (!roomRef.current || !KEY_ACTIONS[event.code] || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('input,textarea,select,button,[role="slider"]')) return;
-      event.preventDefault(); held.current.add(keyActions[event.code]);
+      event.preventDefault(); controls.press(KEY_ACTIONS[event.code]);
     };
-    const keyUp = (event: KeyboardEvent) => {if (keyActions[event.code]) held.current.delete(keyActions[event.code]);};
-    const clear = () => held.current.clear();
+    const keyUp = (event: KeyboardEvent) => {if (KEY_ACTIONS[event.code]) controls.release(KEY_ACTIONS[event.code]);};
+    const clear = () => controls.clear();
     window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp);
     window.addEventListener('blur', clear); document.addEventListener('visibilitychange', clear);
     const timer = window.setInterval(() => {
-      const keys = held.current;
-      const turn = Number(keys.has('turnLeft')) - Number(keys.has('turnRight'));
+      const turn = Number(controls.isHeld('turnLeft')) - Number(controls.isHeld('turnRight'));
       if (turn) {
         const yaw = aim.current.yaw + turn * 0.045;
         aim.current.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
@@ -100,7 +95,7 @@ export default function App() {
       scene.current?.setView(aim.current.yaw, aim.current.pitch);
       const room = roomRef.current;
       if (!room) return;
-      room.send('input', makeInputFrame(sequence.current++, keys, aim.current));
+      room.send('input', controls.read(++sequence.current, aim.current));
     }, 1000 / 30);
     return () => {
       clearInterval(timer); window.removeEventListener('keydown', keyDown);
@@ -113,7 +108,7 @@ export default function App() {
   async function connect(mode: 'training' | 'arena' | 'friend') {
     if (connecting) return;
     const attempt = ++connectionAttempt.current;
-    setConnecting(true); setNotice('正在连接竞技服务器…'); held.current.clear(); scene.current?.releaseMouse();
+    setConnecting(true); setNotice('正在连接竞技服务器…'); controls.clear(); scene.current?.releaseMouse();
     const previous = roomRef.current; roomRef.current = null;
     setPlayerId(null); setSnapshot(null); setConnectedRoom('');
     try {
@@ -135,12 +130,12 @@ export default function App() {
         }
         setSnapshot(next);
       });
-      room.onMessage('result', () => {held.current.clear(); scene.current?.releaseMouse();});
+      room.onMessage('result', () => {controls.clear(); scene.current?.releaseMouse();});
       room.onMessage('input-rejected', () => {});
       room.onError((_code, message) => setNotice(`连接出现错误：${message || '请重新进入房间'}`));
       room.onLeave(() => {
         if (roomRef.current !== room) return;
-        held.current.clear(); roomRef.current = null;
+        controls.clear(); roomRef.current = null;
         scene.current?.releaseMouse();
         setPlayerId(null); setConnectedRoom(''); setNotice('已离开房间，可重新进入。');
       });
@@ -151,7 +146,7 @@ export default function App() {
   }
 
   async function leave() {
-    ++connectionAttempt.current; held.current.clear(); scene.current?.releaseMouse();
+    ++connectionAttempt.current; controls.clear(); scene.current?.releaseMouse();
     const room = roomRef.current; roomRef.current = null;
     setPlayerId(null); setSnapshot(null); setConnectedRoom(''); setNotice('已返回机库。');
     await room?.leave();
@@ -185,9 +180,14 @@ export default function App() {
   }
 
   function mouseLookChanged(locked: boolean, message: string) {
-    if (mouseCaptured.current && !locked) held.current.clear();
+    if (mouseCaptured.current && !locked) controls.clear();
     mouseCaptured.current = locked;
     setMouseLook({locked, message});
+  }
+
+  function mouseFireChanged(pressed: boolean) {
+    if (pressed && roomRef.current) controls.press('fire');
+    else controls.release('fire');
   }
 
   const changeYaw = (value: number | [number, number]) => {
@@ -220,7 +220,7 @@ export default function App() {
             <Section padding={0} variant="muted">
               <Scene ref={scene} snapshot={snapshot} playerId={playerId} importedFile={file}
                 onImportStatus={setImportStatus} onRendererStatus={setRenderer}
-                onLook={changeMouseLook} onMouseLookChange={mouseLookChanged} />
+                onLook={changeMouseLook} onMouseLookChange={mouseLookChanged} onFireChange={mouseFireChanged} />
             </Section>
             <HStack gap={3} wrap="wrap" vAlign="center">
               <Button label={mouseLook.locked ? '退出鼠标视角' : '启用鼠标视角'} variant="secondary" size="sm"
@@ -232,7 +232,10 @@ export default function App() {
                 <Text type="label">{status} · {own ? '试作机 OA-01' : 'OA-01 / FRAME ONE'}</Text>
                 <Text type="supporting" color="secondary">{renderer}</Text>
               </VStack>
-              <Text type="code">{own ? `核心 ${Math.round(own.health)} / 1000 · 能量 ${(own.energy / 1000).toFixed(1)} kJ · 热量 ${Math.round(own.heat)}%` : '2.2 m · 180 kg · 50 kJ'}</Text>
+              <VStack gap={1}>
+                <Text type="code">{own ? `核心 ${Math.round(own.health)} / 1000 · 能量 ${(own.energy / 1000).toFixed(1)} kJ · 热量 ${Math.round(own.heat)}%` : '2.2 m · 180 kg · 50 kJ'}</Text>
+                {own && <Text type="code">推进 {Math.round(own.boostCharge ?? 100)}% · {own.boostOverheated ? '推进过热：落地恢复' : own.landingRecovery > 0 ? `落地回正 ${own.landingRecovery.toFixed(1)}s` : own.boosting ? (own.grounded ? '推进冲刺' : '空中推进') : own.grounded ? '地面就绪' : '腾空滑行'} · 高度 {own.position.y.toFixed(1)}m</Text>}
+              </VStack>
             </HStack>
             <Section variant="section" padding={4}>
               <VStack gap={3}>
@@ -245,9 +248,10 @@ export default function App() {
             <Section variant="section" padding={4}>
               <VStack gap={4}>
                 <Heading level={2}>驾驶控制</Heading>
-                <Text type="supporting" color="secondary">鼠标：单击战场后移动鼠标控制视角，Esc 释放；也可按住右键拖动。WASD 移动 · 空格射击 · Shift 推进 · E 升空。触屏按钮与瞄准滑杆仍可使用。</Text>
+                <Text type="supporting" color="secondary">鼠标观察，WASD 按镜头方向移动；空格起跳，按住可继续升空。Q 推进冲刺 · Shift 缓行 · 左键或 F 射击。Esc 释放光标；也可右键拖动观察。</Text>
+                <Text type="supporting" color="secondary">空中继续用 WASD 选择喷射方向，配合 Q 或持续空格推进；余量耗尽后需要落地恢复。落地回正期间不能再次起跳或推进。触屏可使用下方按钮。</Text>
                 <HStack gap={2} wrap="wrap">
-                  {(Object.keys(CONTROL_LABELS) as ControlAction[]).map(action => <HoldButton key={action} action={action} held={held} label={CONTROL_LABELS[action]} />)}
+                  {(Object.keys(CONTROL_LABELS) as ControlAction[]).map(action => <HoldButton key={action} action={action} controls={controls} label={CONTROL_LABELS[action]} />)}
                 </HStack>
                 <Slider label="水平朝向" min={-180} max={180} step={1} value={yawDegrees} onChange={changeYaw} valueDisplay="text" formatValue={value => `${value}°`} />
                 <Slider label="瞄准仰角" min={-30} max={40} step={1} value={pitchDegrees} onChange={changePitch} valueDisplay="text" formatValue={value => `${value}°`} />

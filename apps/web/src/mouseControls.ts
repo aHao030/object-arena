@@ -1,9 +1,10 @@
 export interface MouseControlCallbacks {
   onLook(deltaX: number, deltaY: number): void;
   onStateChange(locked: boolean, message: string): void;
+  onFireChange?(pressed: boolean): void;
 }
 
-/** Owns browser pointer capture and listeners; it only emits relative look intents. */
+/** Owns browser pointer capture and listeners, emitting look and held fire intents. */
 export function createMouseControls(element: HTMLCanvasElement, callbacks: MouseControlCallbacks) {
   const doc = element.ownerDocument;
   let drag: {id: number; x: number; y: number} | null = null;
@@ -11,6 +12,7 @@ export function createMouseControls(element: HTMLCanvasElement, callbacks: Mouse
   let wanted = false;
   let locked = false;
   let disposed = false;
+  let firing = false;
   let lastPointerType = 'mouse';
   const removers: (() => void)[] = [];
   const listen = (target: EventTarget, type: string, handler: EventListener) => {
@@ -21,6 +23,19 @@ export function createMouseControls(element: HTMLCanvasElement, callbacks: Mouse
     const previous = drag;
     drag = null;
     if (previous && element.hasPointerCapture(previous.id)) element.releasePointerCapture(previous.id);
+  }
+  function setFiring(pressed: boolean) {
+    if (firing === pressed) return;
+    firing = pressed;
+    callbacks.onFireChange?.(pressed);
+  }
+  function primaryReleased(event: Event) {
+    const pointer = event as PointerEvent;
+    if (pointer.pointerType && pointer.pointerType !== 'mouse') return;
+    if (pointer.button === 0) setFiring(false);
+  }
+  function pointerCanceled(event: Event) {
+    if ((event as PointerEvent).pointerType === 'mouse') setFiring(false);
   }
   function capture() {
     if (disposed || pending || doc.pointerLockElement === element) return;
@@ -54,6 +69,7 @@ export function createMouseControls(element: HTMLCanvasElement, callbacks: Mouse
   }
   function release() {
     wanted = false;
+    setFiring(false);
     stopDrag();
     if (locked) {
       locked = false;
@@ -90,11 +106,18 @@ export function createMouseControls(element: HTMLCanvasElement, callbacks: Mouse
   listen(element, 'pointerdown', event => {
     const pointer = event as PointerEvent;
     lastPointerType = pointer.pointerType || 'mouse';
-    if (pointer.pointerType !== 'mouse' || pointer.button !== 2 || doc.pointerLockElement === element) return;
+    if (pointer.pointerType !== 'mouse') return;
+    if (pointer.button === 0) {setFiring(true); return;}
+    if (pointer.button !== 2 || doc.pointerLockElement === element) return;
     pointer.preventDefault();
     element.focus({preventScroll: true});
     drag = {id: pointer.pointerId, x: pointer.clientX, y: pointer.clientY};
     element.setPointerCapture(pointer.pointerId);
+  });
+  listen(element, 'mousedown', event => {
+    const mouse = event as MouseEvent & {sourceCapabilities?: {firesTouchEvents?: boolean}};
+    // A chorded primary press does not produce a second pointerdown.
+    if (mouse.button === 0 && lastPointerType === 'mouse' && !mouse.sourceCapabilities?.firesTouchEvents) setFiring(true);
   });
   listen(element, 'pointermove', event => {
     const pointer = event as PointerEvent;
@@ -106,7 +129,15 @@ export function createMouseControls(element: HTMLCanvasElement, callbacks: Mouse
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     listen(element, type, event => {if ((event as PointerEvent).pointerId === drag?.id) stopDrag();});
   }
-  if (doc.defaultView) listen(doc.defaultView, 'blur', release);
+  listen(element, 'pointerup', primaryReleased);
+  listen(doc, 'pointerup', primaryReleased);
+  listen(doc, 'mouseup', primaryReleased);
+  listen(element, 'pointercancel', pointerCanceled);
+  listen(doc, 'pointercancel', pointerCanceled);
+  if (doc.defaultView) {
+    listen(doc.defaultView, 'mouseup', primaryReleased);
+    listen(doc.defaultView, 'blur', release);
+  }
   listen(doc, 'visibilitychange', () => {if (doc.hidden) release();});
   listen(element, 'contextmenu', event => event.preventDefault());
   return {

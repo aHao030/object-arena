@@ -1,15 +1,37 @@
 /** Shared wire contract for the first authoritative, local-development slice. */
-export const SIM_RULESET = 'mecha-slice-0.2' as const;
+export const SIM_RULESET = 'mecha-slice-0.3' as const;
 export const PHYSICS_HZ = 60;
 export const SNAPSHOT_HZ = 20;
 export const INPUT_HZ = 30;
 export const ENERGY_CAPACITY = 50_000;
 export const CATALOG_CP = 95;
 
+/** Project-specific movement profile: SI units except charge (0..100). */
+export const MOVEMENT_RULES = {
+  walkSpeed: 6,
+  slowSpeed: 2.5,
+  jumpSpeed: 6.5,
+  jumpLiftDelay: 0.18,
+  groundResponseSeconds: 0.12,
+  groundMaxForce: 3600,
+  groundMaxPower: 10000,
+  boostSpeed: 16,
+  boostResponseSeconds: 0.18,
+  boostMaxForce: 7000,
+  boostInputPower: 30000,
+  boostIdlePower: 400,
+  boostCapacity: 100,
+  boostDrainPerSecond: 32,
+  boostRecoveryPerSecond: 85,
+  boostUnlockCharge: 35,
+  landingRecovery: 0.18,
+  exhaustedLandingRecovery: 0.8,
+} as const;
+
 export type MatchMode = 'training' | 'arena';
 export type Vector3 = { x: number; y: number; z: number };
 
-/** moveX/moveZ are local horizontal axes (positive Z is backwards).
+/** moveX/moveZ are camera-relative horizontal axes (positive Z is backwards).
  * Yaw 0 faces -Z; positive pitch looks up. Values are radians and SI units. */
 export interface InputFrame {
   seq: number;
@@ -20,6 +42,8 @@ export interface InputFrame {
   fire: boolean;
   boost: boolean;
   lift: boolean;
+  jump?: boolean;
+  slow?: boolean;
 }
 
 export interface PlayerSnapshot {
@@ -33,6 +57,9 @@ export interface PlayerSnapshot {
   heat: number;
   grounded: boolean;
   boosting: boolean;
+  boostCharge: number;
+  boostOverheated: boolean;
+  landingRecovery: number;
   overheated: boolean;
   lastAppliedSeq: number;
   appliedAtTick: number;
@@ -97,7 +124,8 @@ export const CATALOG = {
   physicsHz: PHYSICS_HZ,
   snapshotHz: SNAPSHOT_HZ,
   inputHz: INPUT_HZ,
-  implemented: ['authoritative-rapier-root', 'ground-movement', 'limited-boost', 'server-projectiles', 'training-targets', 'two-player-room'],
+  movement: MOVEMENT_RULES,
+  implemented: ['authoritative-rapier-root', 'ground-movement', 'camera-relative-movement', 'ground-jump', 'limited-boost', 'landing-recovery', 'server-projectiles', 'training-targets', 'two-player-room'],
   notImplemented: ['melee', 'shield', 'part-disable', 'full-m0.1-loadouts', 'client-prediction', 'persistent-replay'],
   limitations: ['原型使用稳定胶囊根体；尚非完整关节机体与m0.1姿态控制。', '结果仅保存在进程内，重启清空；本地开发不提供账户身份认证。'],
 } as const;

@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { randomUUID } from 'node:crypto';
 import {
-  ENERGY_CAPACITY, PHYSICS_HZ, SIM_RULESET,
+  ENERGY_CAPACITY, MOVEMENT_RULES, PHYSICS_HZ, SIM_RULESET,
   type InputFrame, type MatchMode, type MatchResult, type PlayerSnapshot,
   type ProjectileSnapshot, type SimulationEvent, type Snapshot, type TargetSnapshot, type Vector3,
 } from '../../protocol/src/index.ts';
@@ -11,6 +11,11 @@ const MASS = 180;
 const clamp = (value: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, value));
 const angleDelta = (to: number, from: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
 const copy = (v: Vector3): Vector3 => ({ x: v.x, y: v.y, z: v.z });
+// Positive translational work for this force over one fixed step; braking
+// never generates battery energy. Includes the acceleration from rest term.
+const mechanicalPower = (force: Vector3, velocity: Vector3) => Math.max(0,
+  force.x * velocity.x + force.y * velocity.y + force.z * velocity.z
+  + (force.x ** 2 + force.y ** 2 + force.z ** 2) * DT / (2 * MASS));
 const neutral = (seq = 0): InputFrame => ({ seq, moveX: 0, moveZ: 0, aimYaw: 0, aimPitch: 0, fire: false, boost: false, lift: false });
 let initialized: Promise<void> | undefined;
 
@@ -32,6 +37,13 @@ interface Pilot {
   overheated: boolean;
   grounded: boolean;
   boosting: boolean;
+  boostCharge: number;
+  boostOverheated: boolean;
+  landingRecovery: number;
+  jumpHeld: boolean;
+  liftReadyAt: number;
+  hasGroundContact: boolean;
+  airborne: boolean;
   lastShotAt: number;
   shotsFired: number;
 }
@@ -119,6 +131,8 @@ class MachineSimulation {
       maxSeq: 0, appliedSeq: 0, appliedAtTick: 0, yaw, pitch: 0,
       energy: ENERGY_CAPACITY, health: 1000, heat: 0, overheated: false,
       grounded: false, boosting: false, lastShotAt: -10, shotsFired: 0,
+      boostCharge: MOVEMENT_RULES.boostCapacity, boostOverheated: false, landingRecovery: 0, jumpHeld: false, liftReadyAt: 0,
+      hasGroundContact: false, airborne: false,
     });
     this.status = this.mode === 'training' || this.pilots.size === 2 ? 'running' : 'waiting';
   }
@@ -141,7 +155,7 @@ class MachineSimulation {
     if (!pilot) return { accepted: false, reason: 'unknown-player' };
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { accepted: false, reason: 'invalid-input' };
     const raw = data as Record<string, unknown>;
-    const fields = new Set(['seq', 'moveX', 'moveZ', 'aimYaw', 'aimPitch', 'fire', 'boost', 'lift']);
+    const fields = new Set(['seq', 'moveX', 'moveZ', 'aimYaw', 'aimPitch', 'fire', 'boost', 'lift', 'jump', 'slow']);
     if (Object.keys(raw).some((key) => !fields.has(key))) return { accepted: false, reason: 'unknown-field' };
     for (const key of ['seq', 'moveX', 'moveZ', 'aimYaw', 'aimPitch']) {
       if (typeof raw[key] !== 'number' || !Number.isFinite(raw[key])) return { accepted: false, reason: 'invalid-number' };
@@ -149,6 +163,7 @@ class MachineSimulation {
     const seq = raw.seq as number;
     if (!Number.isSafeInteger(seq) || seq <= pilot.maxSeq || seq > pilot.maxSeq + 1024) return { accepted: false, reason: 'invalid-sequence' };
     for (const key of ['fire', 'boost', 'lift']) if (typeof raw[key] !== 'boolean') return { accepted: false, reason: 'invalid-button' };
+    for (const key of ['jump', 'slow']) if (key in raw && typeof raw[key] !== 'boolean') return { accepted: false, reason: 'invalid-button' };
     pilot.inputTimes = pilot.inputTimes.filter((time) => time > this.time - 1);
     if (pilot.inputTimes.length >= 30) return { accepted: false, reason: 'input-rate-limit' };
     let moveX = clamp(raw.moveX as number, -1, 1), moveZ = clamp(raw.moveZ as number, -1, 1);
@@ -158,6 +173,7 @@ class MachineSimulation {
       seq, moveX, moveZ, aimYaw: angleDelta(raw.aimYaw as number, 0),
       aimPitch: clamp(raw.aimPitch as number, -1.2, 1.2),
       fire: raw.fire as boolean, boost: raw.boost as boolean, lift: raw.lift as boolean,
+      jump: raw.jump === true, slow: raw.slow === true,
     };
     pilot.inputAt = this.time;
     pilot.inputTimes.push(this.time);
@@ -184,9 +200,22 @@ class MachineSimulation {
       const position = pilot.body.translation();
       const support = this.world.castRayAndGetNormal(new RAPIER.Ray(copy(position), { x: 0, y: -1, z: 0 }), 1.14, true,
         undefined, undefined, pilot.collider);
-      pilot.grounded = Boolean(support && support.normal.y > 0.5);
-      const current = this.status === 'running' && this.time - pilot.inputAt <= 0.25 + 1e-8
+      const verticalSpeed = pilot.body.linvel().y;
+      pilot.grounded = Boolean(support && support.normal.y > 0.5 && verticalSpeed <= 0.1 && verticalSpeed >= -0.5);
+      pilot.landingRecovery = Math.max(0, pilot.landingRecovery - DT);
+      if (pilot.grounded) {
+        if (pilot.airborne) pilot.landingRecovery = pilot.boostOverheated
+          ? MOVEMENT_RULES.exhaustedLandingRecovery : MOVEMENT_RULES.landingRecovery;
+        pilot.hasGroundContact = true;
+        pilot.airborne = false;
+      } else if (pilot.hasGroundContact) pilot.airborne = true;
+      const fresh = this.status === 'running' && this.time - pilot.inputAt <= 0.25 + 1e-8;
+      const current = fresh
         ? pilot.input : { ...neutral(pilot.appliedSeq), aimYaw: pilot.yaw, aimPitch: pilot.pitch };
+      const jumpPressed = fresh && current.jump && !pilot.jumpHeld;
+      // Expiry stops actions but never fabricates a button release. A fresh false
+      // input must re-arm Space, so a resumed held key cannot create a new edge.
+      if (fresh) pilot.jumpHeld = current.jump === true;
       if (current.seq > pilot.appliedSeq) {
         pilot.appliedSeq = current.seq;
         pilot.appliedAtTick = this.tick;
@@ -196,14 +225,21 @@ class MachineSimulation {
       pilot.boosting = false;
       if (this.status !== 'running') continue;
       pilot.energy = Math.max(0, pilot.energy - 500 * DT);
-      if (pilot.energy > 0 && !pilot.overheated && current.boost) this.boost(pilot, current);
+      if (jumpPressed && pilot.grounded && pilot.landingRecovery <= 0) this.jump(pilot);
+      const liftRequested = current.lift && this.time >= pilot.liftReadyAt;
+      if (pilot.energy > 0 && pilot.boostCharge > 0 && !pilot.boostOverheated && pilot.landingRecovery <= 0
+        && (current.boost || (!pilot.grounded && liftRequested))) this.boost(pilot, current);
       else if (pilot.grounded) this.groundDrive(pilot, current);
       if (pilot.heat >= 100) pilot.overheated = true;
       if (current.fire && !pilot.overheated && pilot.health > 0 && this.time - pilot.lastShotAt >= 0.25 - 1e-8) {
         if (pilot.energy >= 500 && this.bullets.filter((b) => b.ownerId === pilot.id).length < 16) this.shoot(pilot);
       }
-      if (!pilot.boosting && this.time - pilot.lastShotAt >= 1) pilot.energy = Math.min(ENERGY_CAPACITY, pilot.energy + 3000 * DT);
-      pilot.heat = Math.max(0, Math.min(100, pilot.heat) - (pilot.boosting || this.time - pilot.lastShotAt < 1 ? 10 : 6) * DT);
+      if (pilot.grounded && !pilot.boosting) {
+        pilot.boostCharge = Math.min(MOVEMENT_RULES.boostCapacity, pilot.boostCharge + MOVEMENT_RULES.boostRecoveryPerSecond * DT);
+        if (pilot.landingRecovery <= 0 && pilot.boostCharge >= MOVEMENT_RULES.boostUnlockCharge) pilot.boostOverheated = false;
+        if (this.time - pilot.lastShotAt >= 1) pilot.energy = Math.min(ENERGY_CAPACITY, pilot.energy + 3000 * DT);
+      }
+      pilot.heat = Math.max(0, Math.min(100, pilot.heat) - (this.time - pilot.lastShotAt < 1 ? 10 : 6) * DT);
       if (pilot.overheated && pilot.heat <= 60) pilot.overheated = false;
     }
     this.world.step();
@@ -222,41 +258,62 @@ class MachineSimulation {
     }
   }
 
-  private localDirection(pilot: Pilot, input: InputFrame): Vector3 {
-    const c = Math.cos(pilot.yaw), s = Math.sin(pilot.yaw);
+  private localDirection(input: InputFrame): Vector3 {
+    const c = Math.cos(input.aimYaw), s = Math.sin(input.aimYaw);
     return { x: input.moveX * c + input.moveZ * s, y: 0, z: -input.moveX * s + input.moveZ * c };
   }
 
   private groundDrive(pilot: Pilot, input: InputFrame) {
-    const direction = this.localDirection(pilot, input), velocity = pilot.body.linvel();
-    let x = (direction.x * 6 - velocity.x) * MASS / 0.22;
-    let z = (direction.z * 6 - velocity.z) * MASS / 0.22;
-    const force = Math.hypot(x, z), maximum = 1200;
+    const direction = this.localDirection(input), velocity = pilot.body.linvel();
+    const speed = input.slow ? MOVEMENT_RULES.slowSpeed : MOVEMENT_RULES.walkSpeed;
+    let x = (direction.x * speed - velocity.x) * MASS / MOVEMENT_RULES.groundResponseSeconds;
+    let z = (direction.z * speed - velocity.z) * MASS / MOVEMENT_RULES.groundResponseSeconds;
+    const force = Math.hypot(x, z), maximum = MOVEMENT_RULES.groundMaxForce;
     if (force > maximum) { x *= maximum / force; z *= maximum / force; }
     if (pilot.energy <= 0 && x * velocity.x + z * velocity.z > 0) return;
     let power = Math.max(0, x * (velocity.x + x * DT / MASS / 2) + z * (velocity.z + z * DT / MASS / 2));
-    const available = Math.min(4800, pilot.energy * 0.8 / DT);
+    const available = Math.min(MOVEMENT_RULES.groundMaxPower, pilot.energy * 0.8 / DT);
     if (power > available && power > 0) { const ratio = available / power; x *= ratio; z *= ratio; power *= ratio; }
     pilot.body.addForce({ x, y: 0, z }, true);
     pilot.energy = Math.max(0, pilot.energy - power / 0.8 * DT);
   }
 
+  private jump(pilot: Pilot) {
+    const cost = 0.5 * MASS * MOVEMENT_RULES.jumpSpeed ** 2 / 0.8;
+    if (pilot.energy < cost) return;
+    pilot.body.applyImpulse({ x: 0, y: MASS * (MOVEMENT_RULES.jumpSpeed - pilot.body.linvel().y), z: 0 }, true);
+    pilot.energy -= cost;
+    pilot.grounded = false;
+    pilot.airborne = true;
+    pilot.liftReadyAt = this.time + MOVEMENT_RULES.jumpLiftDelay;
+  }
+
   private boost(pilot: Pilot, input: InputFrame) {
-    const direction = this.localDirection(pilot, input);
-    direction.y = input.lift ? 1 : 0;
+    const direction = this.localDirection(input);
+    direction.y = input.lift && this.time >= pilot.liftReadyAt ? 1 : 0;
     let length = Math.hypot(direction.x, direction.y, direction.z);
-    if (length < 1e-8) { direction.x = -Math.sin(pilot.yaw); direction.z = -Math.cos(pilot.yaw); length = 1; }
-    const inputWatts = Math.min(12000, pilot.energy / DT);
+    if (length < 1e-8) { direction.x = -Math.sin(input.aimYaw); direction.z = -Math.cos(input.aimYaw); length = 1; }
+    const chargeFraction = Math.min(1, pilot.boostCharge / (MOVEMENT_RULES.boostDrainPerSecond * DT));
+    const inputWatts = Math.min(MOVEMENT_RULES.boostInputPower * chargeFraction, pilot.energy / DT);
     const velocity = pilot.body.linvel();
-    let force = 3000 * inputWatts / 12000;
-    const along = (direction.x * velocity.x + direction.y * velocity.y + direction.z * velocity.z) / length;
-    if (along > 12) force = 0;
-    const work = Math.max(0, force * (along + force * DT / MASS / 2));
-    if (work > 0.8 * inputWatts) force *= 0.8 * inputWatts / work;
-    pilot.body.addForce({ x: direction.x / length * force, y: direction.y / length * force, z: direction.z / length * force }, true);
-    pilot.energy = Math.max(0, pilot.energy - inputWatts * DT);
-    pilot.heat += 15 * DT;
-    pilot.boosting = force > 0;
+    const force = {
+      x: (direction.x / length * MOVEMENT_RULES.boostSpeed - velocity.x) * MASS / MOVEMENT_RULES.boostResponseSeconds,
+      y: direction.y ? (direction.y / length * MOVEMENT_RULES.boostSpeed - velocity.y) * MASS / MOVEMENT_RULES.boostResponseSeconds : 0,
+      z: (direction.z / length * MOVEMENT_RULES.boostSpeed - velocity.z) * MASS / MOVEMENT_RULES.boostResponseSeconds,
+    };
+    const magnitude = Math.hypot(force.x, force.y, force.z), maximum = MOVEMENT_RULES.boostMaxForce * chargeFraction;
+    let scale = magnitude > maximum ? maximum / magnitude : 1;
+    force.x *= scale; force.y *= scale; force.z *= scale;
+    const work = mechanicalPower(force, velocity);
+    const available = 0.8 * Math.max(0, inputWatts - MOVEMENT_RULES.boostIdlePower);
+    scale = work > available ? available / work : 1;
+    force.x *= scale; force.y *= scale; force.z *= scale;
+    pilot.body.addForce(force, true);
+    pilot.boosting = Math.hypot(force.x, force.y, force.z) > 1e-8;
+    if (!pilot.boosting) return;
+    pilot.energy = Math.max(0, pilot.energy - Math.min(inputWatts, MOVEMENT_RULES.boostIdlePower + mechanicalPower(force, velocity) / 0.8) * DT);
+    pilot.boostCharge = Math.max(0, pilot.boostCharge - MOVEMENT_RULES.boostDrainPerSecond * DT);
+    if (pilot.boostCharge < 1e-8) { pilot.boostCharge = 0; pilot.boostOverheated = true; }
   }
 
   private shoot(pilot: Pilot) {
@@ -341,6 +398,7 @@ class MachineSimulation {
       rotationYaw: pilot.yaw, aimPitch: pilot.pitch, energy: Math.round(pilot.energy), health: pilot.health,
       heat: Math.round(pilot.heat * 100) / 100, grounded: pilot.grounded, boosting: pilot.boosting,
       overheated: pilot.overheated, lastAppliedSeq: pilot.appliedSeq, appliedAtTick: pilot.appliedAtTick, shotsFired: pilot.shotsFired,
+      boostCharge: pilot.boostCharge, boostOverheated: pilot.boostOverheated, landingRecovery: pilot.landingRecovery,
     }));
     return {
       ruleset: SIM_RULESET, matchId: this.matchId, mode: this.mode, serverTick: this.tick,

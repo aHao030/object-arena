@@ -41,17 +41,88 @@ function setup() {
   const canvas = new BrowserCanvas();
   const looks: number[][] = [];
   const states: {locked: boolean; message: string}[] = [];
+  const fires: boolean[] = [];
   const controls = createMouseControls(canvas as unknown as HTMLCanvasElement, {
     onLook: (x, y) => looks.push([x, y]),
     onStateChange: (locked, message) => states.push({locked, message}),
+    onFireChange: pressed => fires.push(pressed),
   });
-  return {canvas, doc: canvas.ownerDocument, controls, looks, states};
+  return {canvas, doc: canvas.ownerDocument, controls, looks, states, fires};
 }
 
 const startDrag = (canvas: BrowserCanvas) => dispatch(canvas, 'pointerdown',
   {pointerType: 'mouse', pointerId: 7, button: 2, buttons: 2, clientX: 10, clientY: 20});
 const drag = (canvas: BrowserCanvas) => dispatch(canvas, 'pointermove',
   {pointerType: 'mouse', pointerId: 7, buttons: 2, clientX: 16, clientY: 17});
+
+test('a primary mouse press fires before lock permission and releases outside the canvas after denial', () => {
+  const {canvas, doc, controls, fires} = setup();
+  try {
+    dispatch(canvas, 'pointerdown', {pointerType: 'mouse', pointerId: 1, button: 0, buttons: 1});
+    assert.deepEqual(fires, [true], 'shooting must start on press, including the first unlocked press');
+    dispatch(canvas, 'pointerdown', {pointerType: 'mouse', pointerId: 1, button: 0, buttons: 1});
+    dispatch(canvas, 'click', {pointerType: 'mouse', button: 0});
+    assert.equal(canvas.requests, 1);
+    dispatch(doc, 'pointerlockerror');
+    assert.deepEqual(fires, [true], 'denying pointer lock cannot gate firing or duplicate the held intent');
+    dispatch(doc, 'mouseup', {button: 0});
+    dispatch(doc, 'pointerup', {pointerType: 'mouse', pointerId: 1, button: 0});
+    assert.deepEqual(fires, [true, false], 'global release must end shooting once');
+    for (const pointerType of ['touch', 'pen']) {
+      dispatch(canvas, 'pointerdown', {pointerType, pointerId: 2, button: 0});
+      dispatch(canvas, 'click', {button: 0});
+      dispatch(canvas, 'pointerup', {pointerType, pointerId: 2, button: 0});
+    }
+    assert.deepEqual(fires, [true, false], 'touch and pen compatibility clicks cannot fire automatically');
+  } finally {controls.dispose();}
+});
+
+test('pressing primary while right-dragging fires without accepting touch or pen compatibility mouse events', () => {
+  const {canvas, doc, controls, fires, looks} = setup();
+  try {
+    for (const pointerType of ['touch', 'pen']) {
+      dispatch(canvas, 'pointerdown', {pointerType, pointerId: 2, button: 0});
+      dispatch(canvas, 'mousedown', {button: 0, buttons: 1});
+    }
+    assert.deepEqual(fires, [], 'touch and pen compatibility mousedown cannot fire');
+    startDrag(canvas);
+    dispatch(canvas, 'mousedown', {button: 0, buttons: 1, sourceCapabilities: {firesTouchEvents: true}});
+    assert.deepEqual(fires, [], 'an identified touch compatibility event must remain ignored after mouse activity');
+    dispatch(canvas, 'mousedown', {button: 0, buttons: 3});
+    assert.deepEqual(fires, [true], 'a chorded left press may have mousedown without a second pointerdown');
+    dispatch(canvas, 'pointermove', {pointerType: 'mouse', pointerId: 7, buttons: 3, clientX: 16, clientY: 17});
+    assert.deepEqual(looks, [[6, -3]], 'shooting leaves the right-drag look active');
+    dispatch(doc, 'mouseup', {button: 0});
+    assert.deepEqual(fires, [true, false]);
+    assert.equal(canvas.captures.has(7), true, 'releasing primary does not release the held right drag');
+  } finally {controls.dispose();}
+});
+
+test('mouse fire cannot remain held after release, focus loss, room exit or controller disposal', () => {
+  for (const ending of ['primary-up', 'global-pointerup', 'global-mouseup', 'window-mouseup',
+    'pointer-cancel', 'blur', 'hidden', 'release', 'dispose']) {
+    const {canvas, doc, controls, fires} = setup();
+    try {
+      dispatch(canvas, 'pointerdown', {pointerType: 'mouse', pointerId: 1, button: 0, buttons: 1});
+      const finish = () => {
+        if (ending === 'primary-up') dispatch(canvas, 'pointerup', {pointerType: 'mouse', pointerId: 1, button: 0});
+        if (ending === 'global-pointerup') dispatch(doc, 'pointerup', {pointerType: 'mouse', pointerId: 1, button: 0});
+        if (ending === 'global-mouseup') dispatch(doc, 'mouseup', {button: 0});
+        if (ending === 'window-mouseup') dispatch(doc.defaultView, 'mouseup', {button: 0});
+        if (ending === 'pointer-cancel') dispatch(doc, 'pointercancel', {pointerType: 'mouse', pointerId: 1});
+        if (ending === 'blur') dispatch(doc.defaultView, 'blur');
+        if (ending === 'hidden') {doc.hidden = true; dispatch(doc, 'visibilitychange');}
+        if (ending === 'release') controls.release();
+        if (ending === 'dispose') controls.dispose();
+      };
+      finish(); finish();
+      assert.deepEqual(fires, [true, false], `${ending} must emit exactly one released fire intent`);
+      controls.dispose();
+      dispatch(canvas, 'pointerdown', {pointerType: 'mouse', pointerId: 1, button: 0, buttons: 1});
+      assert.deepEqual(fires, [true, false], 'disposed controllers cannot restart firing');
+    } finally {controls.dispose();}
+  }
+});
 
 test('releasing mouse controls ends a right drag and releases its browser pointer capture', () => {
   const {canvas, controls, looks} = setup();
