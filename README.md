@@ -46,6 +46,8 @@ npm start
 
 当前规则mecha-slice-0.3，采用Minecraft键鼠骨架与EXVS式有限机动，具体取舍见[参考与映射](docs/engineering/MOVEMENT-REFERENCES.md)、[移动日志](logs/2026-11-11-movement.md)、[双轴审查](docs/engineering/CODE-REVIEW-movement.md)。已实际观察3D机库/训练、鼠标、起跳续升、Q推进、左键命中与390px布局。内置浏览器拒绝Pointer Lock，成功锁定与原生Esc释放仍需允许该能力的浏览器复验；GLB视觉、2D降级与真实手机触屏仍待验。最新测试与交付回读以移动日志为准。
 
+本轮46项测试、类型检查与构建及[GitHub自动检查](https://github.com/aHao030/object-arena/actions/runs/42977496951)通过。
+
 ## 当前有效文件
 
 - [v0.4设计总览](docs/mecha-v0.4/README.md)

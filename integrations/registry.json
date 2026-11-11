@@ -191,7 +191,8 @@
         "license": "verified-installed-text-or-documented-source-fallback",
         "runtime": "verified-real-sdk-two-client-match",
         "runtimeEvidence": [
-          "tests/server.test.ts"
+          "tests/server.test.ts",
+          "logs/2026-11-11-movement.md"
         ]
       },
       "plannedIntegrationEntries": [
@@ -255,7 +256,8 @@
         "license": "verified-installed-text-or-documented-source-fallback",
         "runtime": "verified-real-sdk-two-client-match",
         "runtimeEvidence": [
-          "tests/server.test.ts"
+          "tests/server.test.ts",
+          "logs/2026-11-11-movement.md"
         ]
       },
       "plannedIntegrationEntries": [
@@ -388,7 +390,8 @@
         "runtime": "verified-real-wasm-behavior",
         "runtimeEvidence": [
           "tests/simulation.test.ts",
-          "tests/server.test.ts"
+          "tests/server.test.ts",
+          "logs/2026-11-11-movement.md"
         ]
       },
       "plannedIntegrationEntries": [
@@ -6034,7 +6037,8 @@
             "apps/lab/VERIFICATION.md",
             "packages/sim/TDD-LOG.md",
             "logs/2026-11-11-integration.md",
-            "logs/2026-11-11-mouse-look.md"
+            "logs/2026-11-11-mouse-look.md",
+            "logs/2026-11-11-movement.md"
           ],
           "fullWorkflowCompletionClaimed": false
         },
@@ -6046,7 +6050,8 @@
           "executionEvidence": [
             ".scratch/integration-v0.5/spec.md",
             ".scratch/integration-v0.5/tasks.md",
-            "logs/2026-11-11-integration.md"
+            "logs/2026-11-11-integration.md",
+            "logs/2026-11-11-movement.md"
           ],
           "fullWorkflowCompletionClaimed": false
         },
@@ -6057,7 +6062,8 @@
           "disposition": "executed-independent-standards-and-spec-review-and-recheck",
           "executionEvidence": [
             "docs/engineering/CODE-REVIEW-v0.5.md",
-            "docs/engineering/CODE-REVIEW-mouse-look.md"
+            "docs/engineering/CODE-REVIEW-mouse-look.md",
+            "docs/engineering/CODE-REVIEW-movement.md"
           ],
           "fullWorkflowCompletionClaimed": true
         }
@@ -6093,8 +6099,8 @@
   ],
   "verification": {
     "runtime": "scoped-runtime-tests-passed-visual-and-device-unverified",
-    "ruleset": "mecha-slice-0.2",
-    "testsPassed": 32,
+    "ruleset": "mecha-slice-0.3",
+    "testsPassed": 46,
     "typecheck": "passed",
     "productionBuild": "passed",
     "sourceAndBuiltDoctor": {
@@ -6112,13 +6118,26 @@
       "Docker runtime",
       "Pointer Lock success and native Escape release in a browser allowing capture"
     ],
-    "latestEvidenceLog": "logs/2026-11-11-mouse-look.md",
+    "latestEvidenceLog": "logs/2026-11-11-movement.md",
     "mouseLook": {
       "rightDrag": "observed-in-3D-hangar-and-training",
       "narrowLayout": "390px-observed-no-horizontal-overflow",
       "lifecycleBoundaryTests": 6,
       "pointerLockPositiveBrowserPath": "unverified-IAB-denied",
       "workflowRun": "https://github.com/aHao030/object-arena/actions/runs/42972217455"
+    },
+    "movement": {
+      "profile": "minecraft-input-exvs-inspired-project-rules",
+      "serverAuthority": true,
+      "protocolSource": "packages/protocol/src/index.ts#MOVEMENT_RULES",
+      "browserObserved": [
+        "Space jump and lift",
+        "Q boost",
+        "mouse primary target hit",
+        "390px layout"
+      ],
+      "workflowRun": "https://github.com/aHao030/object-arena/actions/runs/42977496951",
+      "evidenceLog": "logs/2026-11-11-movement.md"
     }
   },
   "alternativesAssessment": [
