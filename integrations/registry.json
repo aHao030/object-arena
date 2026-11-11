@@ -6100,7 +6100,7 @@
   "verification": {
     "runtime": "scoped-runtime-tests-passed-visual-and-device-unverified",
     "ruleset": "mecha-slice-0.3",
-    "testsPassed": 46,
+    "testsPassed": 54,
     "typecheck": "passed",
     "productionBuild": "passed",
     "sourceAndBuiltDoctor": {
@@ -6118,7 +6118,18 @@
       "Docker runtime",
       "Pointer Lock success and native Escape release in a browser allowing capture"
     ],
-    "latestEvidenceLog": "logs/2026-11-11-movement.md",
+    "latestEvidenceLog": "logs/2026-11-11-combined-controls.md",
+    "combinedControls": {
+      "sourceCommit": "f5a4a24d57384c10de903a06ed0f88007049a015",
+      "defaults": "WASD + mouse look + Space ascent + Shift boost + mouse primary fire; QERT empty skill slots",
+      "keyPreferences": "local-device save, conflict rejection and reset; browser J remap, reload and ascent observed",
+      "browserObserved": ["Shift+W+primary fire", "Shift+Space+primary fire", "custom J ascent after reload", "1280px and 390px key settings"],
+      "realRapierComboTests": 3,
+      "preferenceTests": 5,
+      "evidenceLog": "logs/2026-11-11-combined-controls.md",
+      "codeReview": "docs/engineering/CODE-REVIEW-combined-controls.md",
+      "workflowRun": "https://github.com/aHao030/object-arena/actions/runs/43007200509"
+    },
     "mouseLook": {
       "rightDrag": "observed-in-3D-hangar-and-training",
       "narrowLayout": "390px-observed-no-horizontal-overflow",
