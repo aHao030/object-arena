@@ -14,12 +14,20 @@ import {CubeTransparentIcon, PlayIcon, ArrowUpTrayIcon} from '@heroicons/react/2
 import {Icon} from '@astryxdesign/core/Icon';
 import {Scene, type SceneHandle} from './Scene';
 import {CATALOG, type Snapshot} from '../../../packages/protocol/src/index';
-import {CONTROL_LABELS, KEY_ACTIONS, type ControlAction} from './input';
+import {CONTROL_LABELS, SKILL_SLOTS, type ControlAction} from './input';
+import {DEFAULT_BINDINGS, buildKeyActions, formatKey, loadBindings, type Bindings} from './keyBindings';
+import {KeySettings} from './KeySettings';
 import {createPilotControls, type PilotControls} from './pilotControls';
 import {applyMouseLook} from './mouseLook';
 import type {MechanicalCheckReport} from '../../lab/src/index.js';
 
 const endpoint = import.meta.env.DEV ? `${location.protocol}//${location.hostname}:2567` : location.origin;
+const bindingStorageKey = 'object-arena.key-bindings.v1';
+
+function readSavedBindings() {
+  try {return loadBindings(localStorage.getItem(bindingStorageKey));}
+  catch {return {...DEFAULT_BINDINGS};}
+}
 
 function useWide() {
   const [wide, setWide] = useState(window.innerWidth >= 1050);
@@ -54,6 +62,10 @@ export default function App() {
   const roomRef = useRef<Room | null>(null);
   const scene = useRef<SceneHandle>(null);
   const [controls] = useState(createPilotControls);
+  const [bindings, setBindings] = useState(readSavedBindings);
+  const keyActions = useRef(buildKeyActions(bindings));
+  const editingKeys = useRef(false);
+  const [storageNotice, setStorageNotice] = useState('键位仅保存在当前设备');
   const aim = useRef({yaw: 0, pitch: 0});
   const mouseCaptured = useRef(false);
   const sequence = useRef(0);
@@ -79,16 +91,17 @@ export default function App() {
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
-      if (!roomRef.current || !KEY_ACTIONS[event.code] || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (editingKeys.current || !roomRef.current || !keyActions.current[event.code] || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('input,textarea,select,button,[role="slider"]')) return;
-      event.preventDefault(); controls.press(KEY_ACTIONS[event.code], `key:${event.code}`);
+      event.preventDefault(); controls.press(keyActions.current[event.code], `key:${event.code}`);
     };
-    const keyUp = (event: KeyboardEvent) => {if (KEY_ACTIONS[event.code]) controls.release(KEY_ACTIONS[event.code], `key:${event.code}`);};
+    const keyUp = (event: KeyboardEvent) => {if (keyActions.current[event.code]) controls.release(keyActions.current[event.code], `key:${event.code}`);};
     const clear = () => controls.clear();
     window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp);
     window.addEventListener('blur', clear); document.addEventListener('visibilitychange', clear);
     const timer = window.setInterval(() => {
+      if (editingKeys.current) controls.clear();
       const turn = Number(controls.isHeld('turnLeft')) - Number(controls.isHeld('turnRight'));
       if (turn) {
         const yaw = aim.current.yaw + turn * 0.045;
@@ -190,8 +203,18 @@ export default function App() {
   }
 
   function mouseFireChanged(pressed: boolean) {
-    if (pressed && roomRef.current) controls.press('fire', 'mouse:primary');
+    if (pressed && roomRef.current && !editingKeys.current) controls.press('fire', 'mouse:primary');
     else controls.release('fire', 'mouse:primary');
+  }
+
+  function saveBindings(next: Bindings) {
+    controls.clear(); keyActions.current = buildKeyActions(next); setBindings(next);
+    try {localStorage.setItem(bindingStorageKey, JSON.stringify(next)); setStorageNotice('键位已保存在当前设备');}
+    catch {setStorageNotice('当前设备无法保存，刷新后将恢复默认键位');}
+  }
+
+  function editKeys(editing: boolean) {
+    editingKeys.current = editing; controls.clear(); scene.current?.releaseMouse();
   }
 
   const changeYaw = (value: number | [number, number]) => {
@@ -252,8 +275,13 @@ export default function App() {
             <Section variant="section" padding={4}>
               <VStack gap={4}>
                 <Heading level={2}>驾驶控制</Heading>
-                <Text type="supporting" color="secondary">鼠标观察，WASD 按镜头方向移动；空格起跳，按住可继续升空。Q 推进冲刺 · Shift 缓行 · 左键或 F 射击。Esc 释放光标；也可右键拖动观察。</Text>
-                <Text type="supporting" color="secondary">空中继续用 WASD 选择喷射方向，配合 Q 或持续空格推进；余量耗尽后需要落地恢复。落地回正期间不能再次起跳或推进。触屏可使用下方按钮。</Text>
+                <Text type="supporting" color="secondary">默认：WASD 移动 · 鼠标观察 · 空格起跳并持续升空 · Shift 加速 · 左键射击 · C 缓行。移动、转向、推进和射击可以同时操作，按键可在下方修改。</Text>
+                <Text type="supporting" color="secondary">空中用方向键位选择推进方向；余量耗尽后需落地恢复，落地回正期间不能起跳或推进。Esc 释放光标，也可右键拖动观察。先点战场再用键盘驾驶；触屏使用下方按钮。</Text>
+                <HStack gap={2} wrap="wrap" aria-label="技能槽">
+                  {SKILL_SLOTS.map(slot => <Button key={slot.binding} label={`${formatKey(bindings[slot.binding])} · ${slot.label}`} variant="secondary" isDisabled />)}
+                </HStack>
+                <Text type="supporting" color="secondary">四个技能槽已预留，尚未接入装备能力。</Text>
+                <KeySettings bindings={bindings} onChange={saveBindings} onEditingChange={editKeys} storageNotice={storageNotice} />
                 <HStack gap={2} wrap="wrap">
                   {(Object.keys(CONTROL_LABELS) as ControlAction[]).map(action => <HoldButton key={action} action={action} controls={controls} label={CONTROL_LABELS[action]} />)}
                 </HStack>
