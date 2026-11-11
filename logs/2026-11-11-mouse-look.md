@@ -26,4 +26,9 @@
 
 ## 最终复核与交付
 
-待独立Standards/Spec复核、完整检查、提交和推送后追加。原I-03整体验收、GLB/2D视觉与手机真机未因本次局部观察自动完成。
+- 首轮鼠标代码4b32cdf已提交推送。按Matt code-review，固定基点到该提交启动两个fresh-context轴，独立报告保存在docs/engineering/CODE-REVIEW-mouse-look.md。
+- Standards首轮3项P2：release未停止右拖；触屏click误请求锁定；取消后晚到grant重新捕获。Spec独立发现前2项。将浏览器输入所有权抽为createMouseControls，Scene只保留薄绑定；用浏览器外部接口EventTarget边界替身验证，而物理路径继续真实Rapier。
+- 新控制器5项逐条红绿并通过；主实施者整体npm run check退出0：31/31测试、类型检查与生产构建通过，测试27.31秒。这个阶段未把成功Pointer Lock当成真实浏览器验收。
+- 原两轴复验确认上述修复；Standards又发现dispose过早禁止状态回调，换画布后UI可能一直显示已捕获。新增画布替换公开回归先红[true]缺false；调换dispose释放顺序后，两个mouse+input共10/10通过，类型检查通过。Standards独立确认新增项关闭；Spec原2项均关闭且无新增问题。
+- 只有本次新增的DOM外部边界被替身覆盖，未伪造物理引擎。legacy void请求若在控制器已经卸载后才授予锁且无Promise通知，已卸载监听无法观察；不宣称该边界或任意旧浏览器均保证支持，右键路径不依赖Pointer Lock。
+- 原I-03整体验收、GLB/2D视觉与手机真机未因本次局部观察自动完成；最终CI、构建/推送读回在下面交付记录追加。

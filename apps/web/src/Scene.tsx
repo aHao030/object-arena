@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { MAX_GLB_BYTES } from './glb.ts';
 import { loadLocalGlb } from './loadLocalGlb.ts';
 import { MOUSE_PITCH_MIN, MOUSE_PITCH_MAX, type MouseAim } from './mouseLook.ts';
+import { createMouseControls } from './mouseControls.ts';
 import type { Snapshot } from '../../../packages/protocol/src/index.ts';
 
 export interface SceneHandle {
@@ -204,106 +205,27 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
   const view = useRef({ yaw: 0, pitch: 0 });
   const runtime = useRef<Runtime | null>(null);
   const [fallback, setFallback] = useState(false);
-  const lockRequested = useRef(false);
-
-  function releaseMouse() {
-    lockRequested.current = false;
-    if (document.pointerLockElement === canvas.current) document.exitPointerLock();
-  }
-
-  function captureMouse() {
-    const element = canvas.current;
-    if (!element || document.pointerLockElement === element) return;
-    if (!element.requestPointerLock) {
-      latest.current.onMouseLookChange(false, '当前浏览器不支持锁定鼠标；请按住右键拖动视角。');
-      return;
-    }
-    element.focus({preventScroll: true});
-    lockRequested.current = true;
-    const failed = () => {
-      if (canvas.current !== element || !lockRequested.current) return;
-      lockRequested.current = false;
-      latest.current.onMouseLookChange(false, '未能锁定鼠标；请按住右键拖动视角，或再次单击战场。');
-    };
-    try {
-      const request = element.requestPointerLock();
-      if (request && typeof request.catch === 'function') void request.catch(failed);
-    } catch {failed();}
-  }
+  const mouseControls = useRef<ReturnType<typeof createMouseControls> | null>(null);
 
   useImperativeHandle(ref, () => ({
     setView(yaw, pitch) {
       if (Number.isFinite(yaw) && Number.isFinite(pitch)) view.current = { yaw, pitch: clamp(pitch, MOUSE_PITCH_MIN, MOUSE_PITCH_MAX) };
     },
-    captureMouse,
-    releaseMouse,
+    captureMouse() {mouseControls.current?.capture();},
+    releaseMouse() {mouseControls.current?.release();},
   }), []);
 
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
-    let drag: {id: number; x: number; y: number} | null = null;
-    const stopDrag = () => {
-      if (drag && element.hasPointerCapture(drag.id)) element.releasePointerCapture(drag.id);
-      drag = null;
-    };
-    const changed = () => {
-      const locked = document.pointerLockElement === element;
-      lockRequested.current = false; stopDrag();
-      latest.current.onMouseLookChange(locked, locked
-        ? '鼠标视角已启用 · 移动鼠标观察，Esc 释放光标。'
-        : '单击战场启用鼠标视角，或按住右键拖动。');
-    };
-    const failed = () => {
-      if (!lockRequested.current) return;
-      lockRequested.current = false;
-      latest.current.onMouseLookChange(false, '未能锁定鼠标；请按住右键拖动视角，或再次单击战场。');
-    };
-    const moved = (event: MouseEvent) => {
-      if (document.pointerLockElement === element) latest.current.onLook(event.movementX, event.movementY);
-    };
-    const down = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse' || event.button !== 2 || document.pointerLockElement === element) return;
-      event.preventDefault(); element.focus({preventScroll: true});
-      drag = {id: event.pointerId, x: event.clientX, y: event.clientY};
-      element.setPointerCapture(event.pointerId);
-    };
-    const dragged = (event: PointerEvent) => {
-      if (!drag || event.pointerId !== drag.id) return;
-      if (!(event.buttons & 2)) {stopDrag(); return;}
-      latest.current.onLook(event.clientX - drag.x, event.clientY - drag.y);
-      drag.x = event.clientX; drag.y = event.clientY;
-    };
-    const contextMenu = (event: Event) => event.preventDefault();
-    const click = (event: MouseEvent) => {if (event.button === 0) captureMouse();};
-    const blurred = () => {stopDrag(); releaseMouse();};
-    const hidden = () => {if (document.hidden) blurred();};
-    element.addEventListener('click', click);
-    element.addEventListener('contextmenu', contextMenu);
-    element.addEventListener('pointerdown', down);
-    element.addEventListener('pointermove', dragged);
-    element.addEventListener('pointerup', stopDrag);
-    element.addEventListener('pointercancel', stopDrag);
-    element.addEventListener('lostpointercapture', stopDrag);
-    document.addEventListener('mousemove', moved);
-    document.addEventListener('pointerlockchange', changed);
-    document.addEventListener('pointerlockerror', failed);
-    window.addEventListener('blur', blurred);
-    document.addEventListener('visibilitychange', hidden);
+    const controls = createMouseControls(element, {
+      onLook: (deltaX, deltaY) => latest.current.onLook(deltaX, deltaY),
+      onStateChange: (locked, message) => latest.current.onMouseLookChange(locked, message),
+    });
+    mouseControls.current = controls;
     return () => {
-      stopDrag(); releaseMouse();
-      element.removeEventListener('click', click);
-      element.removeEventListener('contextmenu', contextMenu);
-      element.removeEventListener('pointerdown', down);
-      element.removeEventListener('pointermove', dragged);
-      element.removeEventListener('pointerup', stopDrag);
-      element.removeEventListener('pointercancel', stopDrag);
-      element.removeEventListener('lostpointercapture', stopDrag);
-      document.removeEventListener('mousemove', moved);
-      document.removeEventListener('pointerlockchange', changed);
-      document.removeEventListener('pointerlockerror', failed);
-      window.removeEventListener('blur', blurred);
-      document.removeEventListener('visibilitychange', hidden);
+      controls.dispose();
+      if (mouseControls.current === controls) mouseControls.current = null;
     };
   }, [fallback]);
 
