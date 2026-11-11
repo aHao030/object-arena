@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {HStack, VStack} from '@astryxdesign/core/Stack';
 import {Text} from '@astryxdesign/core/Text';
@@ -10,10 +10,12 @@ export function KeySettings({bindings, onChange, onEditingChange, storageNotice}
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<BindingAction | null>(null);
+  const captureTarget = useRef<EventTarget | null>(null);
   const [message, setMessage] = useState('选择动作后，按下要使用的单个按键。Esc 取消。');
   useEffect(() => {
     if (!pending) return;
     const capture = (event: KeyboardEvent) => {
+      if (event.target !== captureTarget.current) {setPending(null); return;}
       // Preserve browser shortcuts and normal Tab navigation even during rebinding.
       if (event.ctrlKey || event.metaKey || event.altKey || event.code === 'Tab') return;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -39,7 +41,10 @@ export function KeySettings({bindings, onChange, onEditingChange, storageNotice}
       {(Object.keys(BINDING_LABELS) as BindingAction[]).map(action => <HStack key={action} gap={3} wrap="wrap" hAlign="between" vAlign="center">
         <Text>{BINDING_LABELS[action]}</Text>
         <Button label={pending === action ? `等待${BINDING_LABELS[action]}按键…` : `更改${BINDING_LABELS[action]}（${formatKey(bindings[action])}）`}
-          size="sm" variant={pending === action ? 'primary' : 'secondary'} onClick={() => {
+          size="sm" variant={pending === action ? 'primary' : 'secondary'} onBlur={() => {
+            if (pending === action) {captureTarget.current = null; setPending(null); setMessage('焦点已移开，已取消修改。');}
+          }} onClick={event => {
+            captureTarget.current = event.currentTarget;
             setPending(action); setMessage(`请按下${BINDING_LABELS[action]}的新按键，Esc 取消。`);
           }} />
       </HStack>)}

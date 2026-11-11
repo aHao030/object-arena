@@ -65,6 +65,7 @@ export default function App() {
   const [bindings, setBindings] = useState(readSavedBindings);
   const keyActions = useRef(buildKeyActions(bindings));
   const editingKeys = useRef(false);
+  const editingAim = useRef({yaw: 0, pitch: 0});
   const [storageNotice, setStorageNotice] = useState('键位仅保存在当前设备');
   const aim = useRef({yaw: 0, pitch: 0});
   const mouseCaptured = useRef(false);
@@ -112,7 +113,7 @@ export default function App() {
       scene.current?.setView(aim.current.yaw, aim.current.pitch);
       const room = roomRef.current;
       if (!room) return;
-      room.send('input', controls.read(++sequence.current, aim.current));
+      room.send('input', controls.read(++sequence.current, editingKeys.current ? editingAim.current : aim.current));
     }, 1000 / 30);
     return () => {
       clearInterval(timer); window.removeEventListener('keydown', keyDown);
@@ -210,10 +211,11 @@ export default function App() {
   function saveBindings(next: Bindings) {
     controls.clear(); keyActions.current = buildKeyActions(next); setBindings(next);
     try {localStorage.setItem(bindingStorageKey, JSON.stringify(next)); setStorageNotice('键位已保存在当前设备');}
-    catch {setStorageNotice('当前设备无法保存，刷新后将恢复默认键位');}
+    catch {setStorageNotice('当前设备无法保存，本次修改仅在当前页面生效');}
   }
 
   function editKeys(editing: boolean) {
+    if (editing) editingAim.current = {yaw: own?.rotationYaw ?? aim.current.yaw, pitch: own?.aimPitch ?? aim.current.pitch};
     editingKeys.current = editing; controls.clear(); scene.current?.releaseMouse();
   }
 
