@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T02:11:57Z",
+  "title": "Design System: 物竞场交互展示",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "焦橙" },
+      "accent-bright": { "role": "primary", "displayName": "明焦橙" },
+      "paper": { "role": "neutral", "displayName": "石白页面" },
+      "stage": { "role": "neutral", "displayName": "灰绿舞台" },
+      "ink": { "role": "neutral", "displayName": "石墨文字" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "主标题", "purpose": "系统UI字体的页面标题；窄屏按现有断点缩小。" },
+      "title": { "displayName": "集合标题", "purpose": "示例物体集合及局部信息分组。" },
+      "body": { "displayName": "正文基准", "purpose": "页面默认字号与行高，辅助文字另按组件设置。" },
+      "action-label": { "displayName": "操作标签", "purpose": "主次操作按钮。" }
+    },
+    "shadows": [
+      { "name": "view-selected", "value": "0 2px 4px #293a1310", "purpose": "视角分段控件的当前项。" },
+      { "name": "range-thumb", "value": "0 1px 3px #322d2433", "purpose": "WebKit滑杆拇指。" },
+      { "name": "dialog", "value": "0 18px 70px #27311936", "purpose": "原生说明弹窗。" },
+      { "name": "toast", "value": "0 6px 25px #27311922", "purpose": "底部短暂提示。" }
+    ],
+    "motion": [
+      { "name": "button-transition", "value": "background .18s,transform .18s", "purpose": "按钮背景与悬停上移1px；默认CSS ease。" },
+      { "name": "asset-transition", "value": "border-color .18s,background .18s", "purpose": "物体卡悬停。" },
+      { "name": "budget-transition", "value": "background .2s", "purpose": "预算条正常与超限色切换。" },
+      { "name": "toast-transition", "value": "opacity .2s,transform .2s", "purpose": "短暂提示由下方15px进入。" },
+      { "name": "reduced-motion", "value": "@media(prefers-reduced-motion:reduce)", "purpose": "关闭现有CSS动画、过渡与按钮位移；不声明Canvas运动已关闭。" }
+    ],
+    "breakpoints": [
+      { "name": "mobile-max", "value": "650px" },
+      { "name": "compact-max", "value": "850px" },
+      { "name": "narrow-desktop-max", "value": "1150px" },
+      { "name": "wide-min", "value": "1500px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "主按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "开始本地训练、返回竞技场等主要动作；不代表在线匹配。",
+      "html": "<button class=\"ds-primary\">开始本地训练</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--accent,#c74827);color:#fff;border:0;border-radius:7px;padding:12px 17px;font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif);font-size:12px;font-weight:600;line-height:1.4;min-height:43px;white-space:nowrap;cursor:pointer;transition:background .18s,transform .18s}.ds-primary:hover{background:#b03d20;transform:translateY(-1px)}.ds-primary:focus-visible{outline:3px solid var(--accent,#c74827);outline-offset:4px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}.ds-primary:hover{transform:none}}"
+    },
+    {
+      "name": "次按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "白底、细边的次级动作，沿用按钮形状与悬停位移。",
+      "html": "<button class=\"ds-secondary\">选择文件</button>",
+      "css": ".ds-secondary{display:inline-flex;align-items:center;justify-content:center;background:#fff;color:var(--ink,#282c29);border:1px solid var(--line,#e3e4dd);border-radius:7px;padding:12px 17px;font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif);font-size:12px;font-weight:600;line-height:1.4;min-height:43px;cursor:pointer;transition:background .18s,transform .18s}.ds-secondary:hover{transform:translateY(-1px)}.ds-secondary:focus-visible{outline:3px solid var(--accent,#c74827);outline-offset:4px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}.ds-secondary:hover{transform:none}}"
+    },
+    {
+      "name": "材质选择",
+      "kind": "input",
+      "refersTo": "material-select",
+      "description": "原生下拉框；训练运行时由页面逻辑禁用。",
+      "html": "<label class=\"ds-field\">材质 <select aria-label=\"材质\"><option>木材</option><option>塑料</option><option>钢材</option></select></label>",
+      "css": ".ds-field{display:flex;align-items:center;justify-content:space-between;gap:24px;color:var(--ink,#282c29);font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif);font-size:12px}.ds-field select{appearance:auto;min-width:92px;padding:6px 12px;border:1px solid var(--line,#e3e4dd);border-radius:5px;background:#fff;color:#4f554d;font-family:inherit;font-size:11px}.ds-field select:focus-visible{outline:3px solid var(--accent,#c74827);outline-offset:4px}"
+    },
+    {
+      "name": "页面导航",
+      "kind": "nav",
+      "description": "当前页通过文字、底部橙线与aria-current共同表达。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"主要导航\"><button aria-current=\"page\">竞技大厅</button><button>物体工坊</button><button>玩法说明</button></nav>",
+      "css": ".ds-nav{display:flex;gap:32px;min-height:76px;align-items:stretch;font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif)}.ds-nav button{position:relative;background:none;border:0;padding:0 4px;font-family:inherit;font-size:14px;font-weight:550;color:#59654f;cursor:pointer}.ds-nav button[aria-current=page]{color:var(--ink,#282c29)}.ds-nav button[aria-current=page]:after{content:'';position:absolute;bottom:0;left:3px;right:3px;height:3px;background:var(--accent,#c74827)}.ds-nav button:hover{color:var(--accent,#c74827)}.ds-nav button:focus-visible{outline:3px solid var(--accent,#c74827);outline-offset:4px}"
+    },
+    {
+      "name": "展示版徽标",
+      "kind": "chip",
+      "description": "表达交互概念版身份，不表达在线用户或服务连接状态。",
+      "html": "<span class=\"ds-badge\"><span></span>交互概念版</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid #dedfd5;border-radius:6px;padding:6px 11px;color:#626b58;font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif);font-size:11px;white-space:nowrap}.ds-badge>span{width:5px;height:5px;border-radius:50%;background:#758764}"
+    },
+    {
+      "name": "物体选择卡",
+      "kind": "card",
+      "refersTo": "asset-card",
+      "description": "卡片文字及选中态摘录；正式页面还包含程序绘制缩略图。",
+      "html": "<button class=\"ds-asset ds-selected\" aria-pressed=\"true\"><span><strong>木质方块</strong><span>轻巧 · 宽接触面</span><em>样例载荷 5.0 kg</em></span><span class=\"ds-check\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg></span></button>",
+      "css": ".ds-asset{position:relative;display:flex;align-items:center;gap:14px;min-height:103px;min-width:220px;padding:14px 16px;background:#fcfcf9;border:1px solid var(--line,#e3e4dd);border-radius:10px;color:var(--ink,#282c29);font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif);text-align:left;cursor:pointer;transition:border-color .18s,background .18s}.ds-asset strong{display:block;font-size:12px;font-weight:600;margin-bottom:5px}.ds-asset span span{display:block;font-size:11px;color:#59654f}.ds-asset em{display:block;margin-top:6px;font-size:11px;font-style:normal;color:#59654f;letter-spacing:.04em}.ds-asset:hover{border-color:#a9b49d;background:#fff}.ds-asset.ds-selected{border-color:var(--accent-bright,#df5835);background:#fff8f1}.ds-asset:focus-visible{outline:3px solid var(--accent,#c74827);outline-offset:4px}.ds-check{position:absolute;right:10px;top:10px;display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--accent-bright,#df5835);color:white}.ds-check svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}@media(prefers-reduced-motion:reduce){.ds-asset{transition:none}}"
+    },
+    {
+      "name": "竞技预算",
+      "kind": "custom",
+      "description": "已实现的数字、预算条与提示组合；超限时同步改变文字和填色，并由页面禁用训练。",
+      "html": "<div class=\"ds-budget\"><div class=\"ds-budget-heading\"><span>竞技预算</span><strong>86<small> / 100 CP</small></strong></div><div class=\"ds-budget-track\"><span></span></div><p>预算内，可以进入本地训练</p></div>",
+      "css": ".ds-budget{min-width:240px;padding-top:17px;border-top:1px solid #eeefe8;color:var(--ink,#282c29);font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif)}.ds-budget-heading{display:flex;justify-content:space-between;align-items:center;font-size:11px}.ds-budget-heading strong{font-size:20px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums}.ds-budget-heading small{font-size:11px;font-weight:400;color:var(--muted,#626b59)}.ds-budget-track{height:5px;background:#eceee5;border-radius:8px;margin:12px 0 8px;overflow:hidden}.ds-budget-track span{display:block;width:86%;height:100%;background:#78896b;transition:background .2s}.ds-budget p{font-size:11px;color:#59654f;margin:0}.ds-budget.ds-over strong,.ds-budget.ds-over p{color:#b52e27}.ds-budget.ds-over .ds-budget-track span{background:#be3d2e}@media(prefers-reduced-motion:reduce){.ds-budget-track span{transition:none}}"
+    },
+    {
+      "name": "Canvas舞台框架",
+      "kind": "custom",
+      "refersTo": "arena-container",
+      "description": "结构片段不包含Canvas渲染脚本；实际页面的尺寸、材质、质量、体积和CP与舞台联动，透视/俯视/轮廓切换及60秒本地训练均由现有脚本完成。",
+      "html": "<section class=\"ds-arena\" aria-label=\"本地训练舞台\"><div class=\"ds-arena-label\">训练竞技场</div><div class=\"ds-canvas-wrap\"><canvas aria-label=\"Canvas舞台结构预览；交互绘制见现有网页\"></canvas><span class=\"ds-caption\">物体已就位，随时开始</span></div></section>",
+      "css": ".ds-arena{background:var(--stage,#f0f1ea);border-radius:16px;overflow:hidden;font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif)}.ds-arena-label{padding:18px 25px 0;font-size:13px;font-weight:650;color:var(--ink,#282c29)}.ds-canvas-wrap{position:relative;height:332px;min-height:300px}.ds-canvas-wrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block}.ds-caption{position:absolute;left:24px;bottom:14px;color:#59654f;font-size:11px;pointer-events:none}@media(max-width:650px){.ds-canvas-wrap{height:265px;min-height:265px}.ds-arena-label{padding:17px 17px 0}.ds-caption{left:17px;bottom:12px}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "工业设计展厅",
+    "overview": "物体是主要视觉内容，界面像安静的试用工作台：石白页面、灰绿舞台、深石墨文字，以焦橙标识自己的物体与主要操作。紧凑参数、细线和系统字体让选择、调整与结果保持在同一视线内。记录仅适用于浏览器本地交互样机，不把视觉完成度当成正式平台实现证据。",
+    "keyCharacteristics": [
+      "安静的浅色工作表面，以色调和边界区分层级。",
+      "焦橙集中于主按钮、玩家标记、选中状态和滑杆。",
+      "参数变化立即反馈到数值、预算和Canvas物体。",
+      "程序绘制物体而非静态raster场景；没有本次交付的raster资产。"
+    ],
+    "rules": [],
+    "dos": [
+      "Do复用现有系统UI字体、容器与按钮圆角，按语义使用焦橙。",
+      "Do让参数变化同时反映到舞台、数值与预算反馈，保留超限文字和禁用状态。",
+      "Do对窄屏与宽屏粗指针设备保留触屏操作、键盘焦点和状态语义。",
+      "Do保留本地训练、示例数据和未接入能力的清楚说明。"
+    ],
+    "donts": [
+      "Don't把CP画成充值余额或供应商token。",
+      "Don't用霓虹、虚构排行榜或在线人数替代现有工作表面语言。",
+      "Don't把程序绘制的立体感标为已接入3D生成或服务器物理裁判。",
+      "Don't把响应式布局记录当成主流设备已经验收的证据。"
+    ]
+  }
+}
