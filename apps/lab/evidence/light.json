@@ -1,0 +1,72 @@
+{
+  "recordedAt": "2026-11-11T03:50:09.264Z",
+  "nodeVersion": "v24.19.0",
+  "engine": "MuJoCo",
+  "version": "4.0.0",
+  "profile": "articulated-lab",
+  "modelHash": "7ba7ef7b15a1f85eeacd803343b4ab440b79b2cdc81e47d0b2848614cfedcfa7",
+  "conditionHash": "b94aae1f199e198bf704718dd7978ee889e375ec3037f73abb89d29625c7da44",
+  "steps": 1000,
+  "finalAngles": [
+    -0.4520378226767821,
+    0.27026158082219537
+  ],
+  "peakControl": 12,
+  "maxTrackingError": 0.4995088125370103,
+  "trackingError": 0.04796217732321789,
+  "controlWorkJ": 3.144983360286485,
+  "saturatedSteps": 35,
+  "status": "passed",
+  "conditions": {
+    "fixture": "original-two-link-arm-v1",
+    "controller": "torque-limited-pd-v1",
+    "profile": "articulated-lab",
+    "payloadKg": 0.1,
+    "targetAnglesRad": [
+      -0.5,
+      0.25
+    ],
+    "initialAnglesRad": [
+      0,
+      0
+    ],
+    "timestepSeconds": 0.002,
+    "simulatedSeconds": 2,
+    "gravityMps2": [
+      0,
+      0,
+      -9.81
+    ],
+    "linkLengthsM": [
+      0.4,
+      0.35
+    ],
+    "linkMassesKg": [
+      0.6,
+      0.4
+    ],
+    "jointLimitsRad": [
+      -1.5,
+      1.5
+    ],
+    "externalContacts": false,
+    "selfCollision": false,
+    "torqueLimitsNm": [
+      12,
+      6
+    ],
+    "kp": [
+      80,
+      50
+    ],
+    "kd": [
+      7,
+      4
+    ],
+    "passToleranceRad": 0.15,
+    "cpuBudgetMs": 2000,
+    "wallTimeoutMs": 8000,
+    "scope": "Isolated original two-link fixture; not a user mech certification or battle-physics equivalence test."
+  },
+  "elapsedMs": 221.71
+}

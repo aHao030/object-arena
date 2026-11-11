@@ -1,8 +1,48 @@
 # 物竞场：把自己的模型变成可驾驶机体
 
-当前设计v0.4 · 2026-11-11。用户确认：照片或3D模型→可驾驶机体→改装→实时对战；采用统一可解释物理，允许受限推进器和科幻武器。
+当前可运行原型 v0.5 · 2026-11-11。私有代码仓库：[aHao030/object-arena](https://github.com/aHao030/object-arena)。产品目标：照片或3D模型→可驾驶机体→改装→实时对战；统一可解释物理，允许受限推进器和科幻武器。
 
-玩家在机库带入作品，确认分件/关节或主动选择核心外壳路线，装上规则武器、护盾和推进模块，在3D场地驾驶、射击、近战和短时升空；通过回放理解命中与资源，再返回改装。
+本次已接入 Three.js + Rapier + Colyseus + MuJoCo。可以进入真实3D训练场、驾驶原创标准机体、有限推进/升空、射击靶标，或者让两个浏览器进入同一个对战房间。支持本机GLB躯干外壳预览，以及独立的MuJoCo双关节机械臂负载验证。
+
+这只是首条可运行路径。导入外壳不改变碰撞或机体能力，其他玩家仍看到标准机体。照片生成、任意模型自动分件/骨骼、完整改装、近战、护盾、部位失能、回放、账户与模型API尚未实现。不扣除token，也不发送用户文件给模型供应商。
+
+## 运行
+
+安装 Node.js 22 或更新版本，在仓库根目录运行：
+
+```sh
+npm ci
+npm run dev
+```
+
+打开 http://127.0.0.1:5173 。网页开发服务5173直接连接竞技服务器2567；两者默认只监听本机。先点击“进入训练场”。键盘WASD移动、左右方向键转向、空格射击、Shift推进、E升空；触屏也有按住式按钮与瞄准滑杆。点击“双人对战”，把房间号给另一浏览器，在“加入指定房间”输入即可。
+
+生产构建与同源本机服务：
+
+```sh
+npm run check
+npm start
+```
+
+构建后打开 http://127.0.0.1:2567 。同一服务提供网页、HTTP接口与WebSocket。容器部署、跨设备配置和边界见[部署说明](docs/engineering/DEPLOYMENT.md)。本轮未购买云服务器或发布公网服务。
+
+独立运行真实机械试验：`npm run lab -- --payload 0.1`。轻载与重载的实际报告保存在[机械验证证据](apps/lab/evidence/)；接口与限制见[验证说明](apps/lab/VERIFICATION.md)。
+
+## 代码与来源
+
+| 目录 | 用途 |
+|---|---|
+| `apps/web` | Astryx界面、Three.js机体与本地GLB预览 |
+| `apps/server` | Colyseus房间、HTTP与静态网页服务 |
+| `apps/lab` | 隔离Worker内的真实MuJoCo WASM机械验证 |
+| `packages/sim` | Rapier权威仿真、输入规则、命中与结算 |
+| `packages/protocol` | 版本化协议、机体目录与实际能力 |
+| `tests` | 真实物理、机械与SDK联机行为测试 |
+| `integrations` | 版本、来源、发布物完整性与许可登记 |
+| `tools/mattpocock-skills` | 保留原文与许可的指定工作流快照 |
+| `legacy/showcase` | 退役推台展示，仅供历史追溯 |
+
+[本次切片规格](.scratch/integration-v0.5/spec.md) · [接入与取舍](docs/engineering/INTEGRATIONS.md) · [第三方许可全文](THIRD_PARTY_NOTICES.md) · [实际日志](logs/2026-11-11-integration.md)。后续每次本项目开发都遵守项目内保留的Matt工作流：规格、分解、行为测试、实现、双轴审查与日志，不把设计目标当成已实现能力。
 
 ## 当前有效文件
 
@@ -22,6 +62,6 @@
 
 v0.3普通物体加底座推台已被新方向替代。根docs带历史标识的旧规则与旧任务只供追溯，不作当前实施依据。
 
-[已有展示](showcase/README.md)与[私密在线版](https://object-arena-demo-ahao.sweetowlet132.chatgpt.site)仍是旧推台Canvas样机，未改成机甲战斗。根DESIGN.md与.impeccable/design.json记录其视觉系统，不代表新功能实现。旧v0.3压缩包保留原版本。
+[历史展示源码](legacy/showcase/README.md)与[旧私密在线版](https://object-arena-demo-ahao.sweetowlet132.chatgpt.site)仍是退役推台Canvas样机，不代表本次3D集成版。根DESIGN.md与.impeccable/design.json记录旧视觉系统。旧v0.3压缩包不进入新仓库。
 
-本轮完成调研、重新设计和质询修订，没有实现机甲平台、运行候选游戏或做真机验证。参数、资产成功率、手感和成本仍须原型实测。
+v0.4文档保留完整目标设计。实施状态以本README、v0.5规格和实际日志为准。当前浏览器适配与真实引擎测试不能替代手机/平板真机性能验收。

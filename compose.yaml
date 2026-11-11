@@ -1,0 +1,10 @@
+services:
+  arena:
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:2567:2567"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 2567
+    restart: unless-stopped
