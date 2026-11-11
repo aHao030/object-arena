@@ -3,15 +3,22 @@ import { VStack } from '@astryxdesign/core/Stack';
 import * as THREE from 'three';
 import { MAX_GLB_BYTES } from './glb.ts';
 import { loadLocalGlb } from './loadLocalGlb.ts';
+import { MOUSE_PITCH_MIN, MOUSE_PITCH_MAX, type MouseAim } from './mouseLook.ts';
 import type { Snapshot } from '../../../packages/protocol/src/index.ts';
 
-export interface SceneHandle { setView(yaw: number, pitch: number): void; }
+export interface SceneHandle {
+  setView(yaw: number, pitch: number): void;
+  captureMouse(): void;
+  releaseMouse(): void;
+}
 export interface SceneProps {
   snapshot: Snapshot | null;
   playerId: string | null;
   importedFile: File | null;
   onImportStatus(message: string): void;
   onRendererStatus(message: string): void;
+  onLook(deltaX: number, deltaY: number): void;
+  onMouseLookChange(locked: boolean, message: string): void;
 }
 
 const PALETTE = {
@@ -118,7 +125,7 @@ interface Runtime {
 }
 
 /** Honest compatibility map: the same snapshots, not a second physics simulation. */
-function startFallback(canvas: HTMLCanvasElement, host: HTMLElement, latest: { current: SceneProps }) {
+function startFallback(canvas: HTMLCanvasElement, host: HTMLElement, latest: { current: SceneProps }, view: { current: MouseAim }) {
   const context = canvas.getContext('2d');
   if (!context) {
     latest.current.onRendererStatus('当前浏览器无法绘制舞台，请换用支持Canvas的浏览器。');
@@ -141,10 +148,13 @@ function startFallback(canvas: HTMLCanvasElement, host: HTMLElement, latest: { c
     const snapshot = latest.current.snapshot;
     const own = snapshot?.players.find((p) => p.id === latest.current.playerId);
     const scale = height / 34;
-    const centerX = own?.position.x ?? 0, centerZ = (own?.position.z ?? 6) - 6;
+    const yaw = view.current.yaw;
+    const centerX = (own?.position.x ?? 0) - Math.sin(yaw) * 6;
+    const centerZ = (own?.position.z ?? 6) - Math.cos(yaw) * 6;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.fillStyle = '#e9eeec'; ctx.fillRect(0, 0, width, height);
-    ctx.save(); ctx.translate(width / 2 - centerX * scale, height / 2 - centerZ * scale); ctx.scale(scale, scale);
+    ctx.save(); ctx.translate(width / 2, height / 2); ctx.scale(scale, scale);
+    ctx.rotate(yaw); ctx.translate(-centerX, -centerZ);
     ctx.fillStyle = '#e1e5e1'; ctx.fillRect(-24, -24, 48, 48);
     ctx.strokeStyle = '#c9d3cc'; ctx.lineWidth = 1 / scale;
     for (let n = -24; n <= 24; n += 4) {
@@ -194,17 +204,113 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
   const view = useRef({ yaw: 0, pitch: 0 });
   const runtime = useRef<Runtime | null>(null);
   const [fallback, setFallback] = useState(false);
+  const lockRequested = useRef(false);
+
+  function releaseMouse() {
+    lockRequested.current = false;
+    if (document.pointerLockElement === canvas.current) document.exitPointerLock();
+  }
+
+  function captureMouse() {
+    const element = canvas.current;
+    if (!element || document.pointerLockElement === element) return;
+    if (!element.requestPointerLock) {
+      latest.current.onMouseLookChange(false, '当前浏览器不支持锁定鼠标；请按住右键拖动视角。');
+      return;
+    }
+    element.focus({preventScroll: true});
+    lockRequested.current = true;
+    const failed = () => {
+      if (canvas.current !== element || !lockRequested.current) return;
+      lockRequested.current = false;
+      latest.current.onMouseLookChange(false, '未能锁定鼠标；请按住右键拖动视角，或再次单击战场。');
+    };
+    try {
+      const request = element.requestPointerLock();
+      if (request && typeof request.catch === 'function') void request.catch(failed);
+    } catch {failed();}
+  }
 
   useImperativeHandle(ref, () => ({
     setView(yaw, pitch) {
-      if (Number.isFinite(yaw) && Number.isFinite(pitch)) view.current = { yaw, pitch: clamp(pitch, -0.65, 0.65) };
+      if (Number.isFinite(yaw) && Number.isFinite(pitch)) view.current = { yaw, pitch: clamp(pitch, MOUSE_PITCH_MIN, MOUSE_PITCH_MAX) };
     },
+    captureMouse,
+    releaseMouse,
   }), []);
+
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    let drag: {id: number; x: number; y: number} | null = null;
+    const stopDrag = () => {
+      if (drag && element.hasPointerCapture(drag.id)) element.releasePointerCapture(drag.id);
+      drag = null;
+    };
+    const changed = () => {
+      const locked = document.pointerLockElement === element;
+      lockRequested.current = false; stopDrag();
+      latest.current.onMouseLookChange(locked, locked
+        ? '鼠标视角已启用 · 移动鼠标观察，Esc 释放光标。'
+        : '单击战场启用鼠标视角，或按住右键拖动。');
+    };
+    const failed = () => {
+      if (!lockRequested.current) return;
+      lockRequested.current = false;
+      latest.current.onMouseLookChange(false, '未能锁定鼠标；请按住右键拖动视角，或再次单击战场。');
+    };
+    const moved = (event: MouseEvent) => {
+      if (document.pointerLockElement === element) latest.current.onLook(event.movementX, event.movementY);
+    };
+    const down = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || event.button !== 2 || document.pointerLockElement === element) return;
+      event.preventDefault(); element.focus({preventScroll: true});
+      drag = {id: event.pointerId, x: event.clientX, y: event.clientY};
+      element.setPointerCapture(event.pointerId);
+    };
+    const dragged = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      if (!(event.buttons & 2)) {stopDrag(); return;}
+      latest.current.onLook(event.clientX - drag.x, event.clientY - drag.y);
+      drag.x = event.clientX; drag.y = event.clientY;
+    };
+    const contextMenu = (event: Event) => event.preventDefault();
+    const click = (event: MouseEvent) => {if (event.button === 0) captureMouse();};
+    const blurred = () => {stopDrag(); releaseMouse();};
+    const hidden = () => {if (document.hidden) blurred();};
+    element.addEventListener('click', click);
+    element.addEventListener('contextmenu', contextMenu);
+    element.addEventListener('pointerdown', down);
+    element.addEventListener('pointermove', dragged);
+    element.addEventListener('pointerup', stopDrag);
+    element.addEventListener('pointercancel', stopDrag);
+    element.addEventListener('lostpointercapture', stopDrag);
+    document.addEventListener('mousemove', moved);
+    document.addEventListener('pointerlockchange', changed);
+    document.addEventListener('pointerlockerror', failed);
+    window.addEventListener('blur', blurred);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      stopDrag(); releaseMouse();
+      element.removeEventListener('click', click);
+      element.removeEventListener('contextmenu', contextMenu);
+      element.removeEventListener('pointerdown', down);
+      element.removeEventListener('pointermove', dragged);
+      element.removeEventListener('pointerup', stopDrag);
+      element.removeEventListener('pointercancel', stopDrag);
+      element.removeEventListener('lostpointercapture', stopDrag);
+      document.removeEventListener('mousemove', moved);
+      document.removeEventListener('pointerlockchange', changed);
+      document.removeEventListener('pointerlockerror', failed);
+      window.removeEventListener('blur', blurred);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, [fallback]);
 
   useEffect(() => {
     const element = canvas.current, container = host.current;
     if (!element || !container) return;
-    if (fallback) return startFallback(element, container, latest);
+    if (fallback) return startFallback(element, container, latest, view);
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ canvas: element, antialias: true, powerPreference: 'low-power' });
@@ -331,7 +437,11 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
         aim.position.copy(own.position).add(new THREE.Vector3(0, 0.48, 0)).addScaledVector(forward, 18);
         aim.quaternion.copy(camera.quaternion);
       } else {
-        camera.position.lerp(follow.set(3.4, 2.9, 4.9), 1 - Math.exp(-dt * 6)); camera.lookAt(0, 1.05, 0);
+        const azimuth = view.current.yaw + Math.atan2(3.4, 4.9);
+        const elevation = 0.3 - view.current.pitch;
+        follow.set(Math.sin(azimuth) * Math.cos(elevation) * 6.25,
+          Math.max(0.25, 1.05 + Math.sin(elevation) * 6.25), Math.cos(azimuth) * Math.cos(elevation) * 6.25);
+        camera.position.lerp(follow, 1 - Math.exp(-dt * 9)); camera.lookAt(0, 1.05, 0);
       }
       renderer.render(world, camera);
     };
@@ -401,7 +511,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene(props, r
   }, [props.importedFile, fallback]);
 
   return <VStack ref={host} width="100%" height="clamp(24rem, 54vh, 36rem)" minHeight={380} gap={0}>
-    <canvas key={fallback ? 'compatible-2d' : 'webgl-3d'} ref={canvas} role="img" aria-label={fallback ? '俯视驾驶兼容模式：根据服务器快照显示机体、目标和弹丸，不提供GLB外观预览。' : '原创机体3D竞技场。画面位置、目标与弹丸来自服务器快照；导入外壳仅在本机显示。'} />
+    <canvas key={fallback ? 'compatible-2d' : 'webgl-3d'} ref={canvas} tabIndex={0} role="img" aria-describedby="mouse-look-help" aria-label={fallback ? '俯视驾驶兼容模式：可用鼠标调整朝向，不提供GLB外观预览。' : '原创机体3D竞技场：单击启用鼠标视角，Esc释放，或按住右键拖动。'} />
   </VStack>;
 });
 

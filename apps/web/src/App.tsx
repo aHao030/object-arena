@@ -15,6 +15,7 @@ import {Icon} from '@astryxdesign/core/Icon';
 import {Scene, type SceneHandle} from './Scene';
 import {CATALOG, type Snapshot} from '../../../packages/protocol/src/index';
 import {CONTROL_LABELS, makeInputFrame, type ControlAction} from './input';
+import {applyMouseLook} from './mouseLook';
 import type {MechanicalCheckReport} from '../../lab/src/index.js';
 
 const endpoint = import.meta.env.DEV ? `${location.protocol}//${location.hostname}:2567` : location.origin;
@@ -49,6 +50,7 @@ export default function App() {
   const scene = useRef<SceneHandle>(null);
   const held = useRef(new Set<ControlAction>());
   const aim = useRef({yaw: 0, pitch: 0});
+  const mouseCaptured = useRef(false);
   const sequence = useRef(0);
   const seeded = useRef(false);
   const connectionAttempt = useRef(0);
@@ -59,6 +61,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false);
   const [notice, setNotice] = useState('机库就绪。先进入训练场，试一试你的第一台机体。');
   const [renderer, setRenderer] = useState('正在准备 3D 场景…');
+  const [mouseLook, setMouseLook] = useState({locked: false, message: '单击战场启用鼠标视角，或按住右键拖动。'});
   const [importStatus, setImportStatus] = useState('原创标准机体 · 可本地替换躯干外观');
   const [file, setFile] = useState<File | null>(null);
   const [payloadKg, setPayloadKg] = useState(0.1);
@@ -91,8 +94,9 @@ export default function App() {
       if (turn) {
         const yaw = aim.current.yaw + turn * 0.045;
         aim.current.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
-        setYawDegrees(Math.round(aim.current.yaw * 180 / Math.PI));
       }
+      setYawDegrees(Math.round(aim.current.yaw * 180 / Math.PI));
+      setPitchDegrees(Math.round(aim.current.pitch * 180 / Math.PI));
       scene.current?.setView(aim.current.yaw, aim.current.pitch);
       const room = roomRef.current;
       if (!room) return;
@@ -109,7 +113,7 @@ export default function App() {
   async function connect(mode: 'training' | 'arena' | 'friend') {
     if (connecting) return;
     const attempt = ++connectionAttempt.current;
-    setConnecting(true); setNotice('正在连接竞技服务器…'); held.current.clear();
+    setConnecting(true); setNotice('正在连接竞技服务器…'); held.current.clear(); scene.current?.releaseMouse();
     const previous = roomRef.current; roomRef.current = null;
     setPlayerId(null); setSnapshot(null); setConnectedRoom('');
     try {
@@ -131,12 +135,13 @@ export default function App() {
         }
         setSnapshot(next);
       });
-      room.onMessage('result', () => held.current.clear());
+      room.onMessage('result', () => {held.current.clear(); scene.current?.releaseMouse();});
       room.onMessage('input-rejected', () => {});
       room.onError((_code, message) => setNotice(`连接出现错误：${message || '请重新进入房间'}`));
       room.onLeave(() => {
         if (roomRef.current !== room) return;
         held.current.clear(); roomRef.current = null;
+        scene.current?.releaseMouse();
         setPlayerId(null); setConnectedRoom(''); setNotice('已离开房间，可重新进入。');
       });
       setNotice(mode === 'training' ? '训练开始：前方橙色靶标由服务器判定命中。' : '双人房间已连接。分享房间号，等待另一位驾驶员。');
@@ -146,7 +151,7 @@ export default function App() {
   }
 
   async function leave() {
-    ++connectionAttempt.current; held.current.clear();
+    ++connectionAttempt.current; held.current.clear(); scene.current?.releaseMouse();
     const room = roomRef.current; roomRef.current = null;
     setPlayerId(null); setSnapshot(null); setConnectedRoom(''); setNotice('已返回机库。');
     await room?.leave();
@@ -172,6 +177,17 @@ export default function App() {
       await navigator.clipboard.writeText(connectedRoom);
       setNotice('房间号已复制。');
     } catch {setNotice(`请手动复制房间号：${connectedRoom}`);}
+  }
+
+  function changeMouseLook(deltaX: number, deltaY: number) {
+    aim.current = applyMouseLook(aim.current, deltaX, deltaY);
+    scene.current?.setView(aim.current.yaw, aim.current.pitch);
+  }
+
+  function mouseLookChanged(locked: boolean, message: string) {
+    if (mouseCaptured.current && !locked) held.current.clear();
+    mouseCaptured.current = locked;
+    setMouseLook({locked, message});
   }
 
   const changeYaw = (value: number | [number, number]) => {
@@ -203,8 +219,14 @@ export default function App() {
           <VStack gap={4} width="100%">
             <Section padding={0} variant="muted">
               <Scene ref={scene} snapshot={snapshot} playerId={playerId} importedFile={file}
-                onImportStatus={setImportStatus} onRendererStatus={setRenderer} />
+                onImportStatus={setImportStatus} onRendererStatus={setRenderer}
+                onLook={changeMouseLook} onMouseLookChange={mouseLookChanged} />
             </Section>
+            <HStack gap={3} wrap="wrap" vAlign="center">
+              <Button label={mouseLook.locked ? '退出鼠标视角' : '启用鼠标视角'} variant="secondary" size="sm"
+                onClick={() => mouseLook.locked ? scene.current?.releaseMouse() : scene.current?.captureMouse()} />
+              <Text id="mouse-look-help" type="supporting" role="status">{mouseLook.message}</Text>
+            </HStack>
             <HStack gap={4} hAlign="between" wrap="wrap">
               <VStack gap={1}>
                 <Text type="label">{status} · {own ? '试作机 OA-01' : 'OA-01 / FRAME ONE'}</Text>
@@ -223,7 +245,7 @@ export default function App() {
             <Section variant="section" padding={4}>
               <VStack gap={4}>
                 <Heading level={2}>驾驶控制</Heading>
-                <Text type="supporting" color="secondary">键盘：WASD 移动 · ← → 转向 · 空格射击 · Shift 推进 · E 升空。触屏按住下方按钮，滑杆调整朝向。</Text>
+                <Text type="supporting" color="secondary">鼠标：单击战场后移动鼠标控制视角，Esc 释放；也可按住右键拖动。WASD 移动 · 空格射击 · Shift 推进 · E 升空。触屏按钮与瞄准滑杆仍可使用。</Text>
                 <HStack gap={2} wrap="wrap">
                   {(Object.keys(CONTROL_LABELS) as ControlAction[]).map(action => <HoldButton key={action} action={action} held={held} label={CONTROL_LABELS[action]} />)}
                 </HStack>
