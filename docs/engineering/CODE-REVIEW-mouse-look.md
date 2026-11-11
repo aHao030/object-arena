@@ -28,3 +28,5 @@
 Standards复验又发现1项P2：旧控制器dispose先标disposed，释放时不再发送locked:false，新画布控制器也不会纠正App原locked:true，按钮可能一直显示“退出鼠标视角”。新增公开画布替换失败用例，先红states只有[true]，再将dispose顺序改成先release、再禁止后续回调，绿为[true,false]。两mouse与input共10/10通过、TypeScript通过；原Standards轴独立确认该项关闭，未发现修复回归。
 
 复验结论：Standards累计4项全部resolved，0项未解决；Spec2项全部resolved，0项未解决。正向Pointer Lock与原生Esc的真实浏览器检查仍按日志列为未验，边界替身不是该浏览器验收的替代。
+
+修复提交65724570ee034e8ccdbe19a8aa8e953f72aa474b已推送，GitHub Actions [42972217455](https://github.com/aHao030/object-arena/actions/runs/42972217455)通过：npm ci、32项测试/类型/构建、源码及构建doctor。最终本机页面与新hash脚本均HTTP200，规则仍0.2。收尾仅改文档与验证元数据，未改变已验应用代码。

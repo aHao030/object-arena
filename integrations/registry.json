@@ -701,11 +701,12 @@
       "verification": {
         "installation": "verified-local-version-and-lock",
         "license": "verified-installed-text-or-documented-source-fallback",
-        "runtime": "build-and-glb-validation-verified-visual-unverified",
+        "runtime": "scoped-3D-mouse-view-observed-GLB-and-fallback-visual-unverified",
         "runtimeEvidence": [
           "tests/glb.test.ts",
           "apps/web/src/Scene.tsx",
-          "tests/glb-loader.test.ts"
+          "tests/glb-loader.test.ts",
+          "logs/2026-11-11-mouse-look.md"
         ]
       },
       "plannedIntegrationEntries": [
@@ -6032,7 +6033,8 @@
           "executionEvidence": [
             "apps/lab/VERIFICATION.md",
             "packages/sim/TDD-LOG.md",
-            "logs/2026-11-11-integration.md"
+            "logs/2026-11-11-integration.md",
+            "logs/2026-11-11-mouse-look.md"
           ],
           "fullWorkflowCompletionClaimed": false
         },
@@ -6054,7 +6056,8 @@
           "sha256": "36847f010579f3bccd54c49793e1fd043f10cc49b4607bac5a3067522e528b91",
           "disposition": "executed-independent-standards-and-spec-review-and-recheck",
           "executionEvidence": [
-            "docs/engineering/CODE-REVIEW-v0.5.md"
+            "docs/engineering/CODE-REVIEW-v0.5.md",
+            "docs/engineering/CODE-REVIEW-mouse-look.md"
           ],
           "fullWorkflowCompletionClaimed": true
         }
@@ -6091,7 +6094,7 @@
   "verification": {
     "runtime": "scoped-runtime-tests-passed-visual-and-device-unverified",
     "ruleset": "mecha-slice-0.2",
-    "testsPassed": 23,
+    "testsPassed": 32,
     "typecheck": "passed",
     "productionBuild": "passed",
     "sourceAndBuiltDoctor": {
@@ -6102,13 +6105,21 @@
     "evidenceLog": "logs/2026-11-11-integration.md",
     "codeReview": "docs/engineering/CODE-REVIEW-v0.5.md",
     "unverified": [
-      "3D visual output",
       "2D fallback display",
       "GLB visual assembly",
       "responsive touch usability",
       "real phone/tablet performance",
-      "Docker runtime"
-    ]
+      "Docker runtime",
+      "Pointer Lock success and native Escape release in a browser allowing capture"
+    ],
+    "latestEvidenceLog": "logs/2026-11-11-mouse-look.md",
+    "mouseLook": {
+      "rightDrag": "observed-in-3D-hangar-and-training",
+      "narrowLayout": "390px-observed-no-horizontal-overflow",
+      "lifecycleBoundaryTests": 6,
+      "pointerLockPositiveBrowserPath": "unverified-IAB-denied",
+      "workflowRun": "https://github.com/aHao030/object-arena/actions/runs/42972217455"
+    }
   },
   "alternativesAssessment": [
     {

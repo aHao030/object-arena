@@ -44,7 +44,7 @@ npm start
 
 [本次切片规格](.scratch/integration-v0.5/spec.md) · [接入与取舍](docs/engineering/INTEGRATIONS.md) · [第三方许可全文](THIRD_PARTY_NOTICES.md) · [实际日志](logs/2026-11-11-integration.md)。后续每次本项目开发都遵守项目内保留的Matt工作流：规格、分解、行为测试、实现、双轴审查与日志，不把设计目标当成已实现能力。
 
-当前规则mecha-slice-0.2。原23项行为检查之外，鼠标增量新增3项真实输入/物理边界测试；[原独立代码审查及修复](docs/engineering/CODE-REVIEW-v0.5.md)、[用户角度质询](docs/engineering/USER-REVIEW-v0.5.md)保留。鼠标增量已实际观察3D机库/训练场右键拖动与390px布局，见[鼠标日志](logs/2026-11-11-mouse-look.md)。内置浏览器拒绝Pointer Lock，成功锁定与Esc释放仍需在允许该能力的浏览器复验；GLB视觉、2D降级与真实手机触屏仍待验。
+当前规则mecha-slice-0.2。鼠标增量后累计32项测试及类型/构建检查通过，包括3项真实鼠标输入→Rapier测试和6项浏览器输入生命周期回归；[本轮自动检查](https://github.com/aHao030/object-arena/actions/runs/42972217455)、[鼠标双轴审查](docs/engineering/CODE-REVIEW-mouse-look.md)已保存。实际观察了3D机库/训练场右键拖动与390px布局，见[鼠标日志](logs/2026-11-11-mouse-look.md)。内置浏览器拒绝Pointer Lock，成功锁定与原生Esc释放仍需在允许该能力的浏览器复验；GLB视觉、2D降级与真实手机触屏仍待验。
 
 ## 当前有效文件
 
